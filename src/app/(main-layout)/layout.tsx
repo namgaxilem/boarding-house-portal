@@ -37,32 +37,38 @@ export default function RootLayout({
           <div className="bg-red-50 h-[64px]"></div>
           <ul className="menu bg-base-200 w-56 rounded-box">
             <li>
-              <Link href={"/"}>Item 1</Link>
+              <details open>
+                <summary>Admin</summary>
+                <ul>
+                  <li>
+                    <a>Rooms</a>
+                  </li>
+                  <li>
+                    <a>People</a>
+                  </li>
+                  <li>
+                    <a>Vehicles</a>
+                  </li>
+                  <li>
+                    <a>Wifi</a>
+                  </li>
+                  <li>
+                    <a>Services</a>
+                  </li>
+                </ul>
+              </details>
             </li>
             <li>
-              <Link href={"/"}>Item 1</Link>
-              <ul>
-                <li>
-                  <Link href={"/"}>Item 1</Link>
-                </li>
-                <li>
-                  <Link href={"/"}>Item 1</Link>
-                </li>
-                <li>
-                  <Link href={"/"}>Item 1</Link>
-                  <ul>
-                    <li>
-                      <Link href={"/"}>Item 1</Link>
-                    </li>
-                    <li>
-                      <Link href={"/"}>Item 1</Link>
-                    </li>
-                  </ul>
-                </li>
-              </ul>
+              <Link href={"/"}>Profile</Link>
             </li>
             <li>
-              <a>Item 3</a>
+              <a>My room</a>
+            </li>
+            <li>
+              <a>Services</a>
+            </li>
+            <li>
+              <a>Users</a>
             </li>
           </ul>
         </div>
