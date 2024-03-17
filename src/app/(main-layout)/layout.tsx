@@ -52,53 +52,72 @@ export default function RootLayout({
 
   return (
     <>
-      <div className="flex items-stretch">
-        <div className="bg-base-200">
-          <div className="bg-red-50 h-[64px]"></div>
-          <ul className="menu bg-base-200 w-56 rounded-box">
-            <li>
-              <details open>
-                <summary>Admin</summary>
-                <ul>
-                  <li>
-                    <Link href={"/rooms"}>Rooms</Link>
-                  </li>
-                  <li>
-                    <Link href={"/people"}>People</Link>
-                  </li>
-                  <li>
-                    <Link href={"/vehicles"}>Vehicles</Link>
-                  </li>
-                  <li>
-                    <Link href={"/wifi"}>Wifi</Link>
-                  </li>
-                  <li>
-                    <Link href={"/services"}>Services</Link>
-                  </li>
-                </ul>
-              </details>
-            </li>
-            <li>
-              <Link href={"/"}>Profile</Link>
-            </li>
-            <li>
-              <a>My room</a>
-            </li>
-            <li>
-              <a>Services</a>
-            </li>
-            <li>
-              <a>Users</a>
-            </li>
-          </ul>
-        </div>
+      <div className="bg-base-200 h-[100vh] fixed hidden md:block top-0">
+        <div className="bg-red-50 h-[64px]"></div>
+        <ul className="menu bg-base-200 w-56 h-full rounded-box">
+          <li>
+            <details open>
+              <summary>Admin</summary>
+              <ul>
+                <li>
+                  <Link href={"/rooms"}>Rooms</Link>
+                </li>
+                <li>
+                  <Link href={"/people"}>People</Link>
+                </li>
+                <li>
+                  <Link href={"/vehicles"}>Vehicles</Link>
+                </li>
+                <li>
+                  <Link href={"/wifi"}>Wifi</Link>
+                </li>
+                <li>
+                  <Link href={"/services"}>Services</Link>
+                </li>
+              </ul>
+            </details>
+          </li>
+          <li>
+            <Link href={"/"}>Profile</Link>
+          </li>
+          <li>
+            <a>My room</a>
+          </li>
+          <li>
+            <a>Services</a>
+          </li>
+          <li>
+            <a>Users</a>
+          </li>
+        </ul>
+      </div>
 
+      <div className="md:pl-[224px]">
         <div className="flex-1">
           <div className="h-[64px] flex justify-between px-[20px] items-center shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)]">
-            <div>
-              <label className="input input-bordered flex items-center gap-2">
-                <input type="text" className="grow" placeholder="Search" />
-                <span>
+            <label className="input input-bordered flex items-center gap-1">
+              <input type="text" className="grow w-auto" placeholder="Search" />
+              <span>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  className="w-6 h-6"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+                  />
+                </svg>
+              </span>
+            </label>
+            <div className="flex items-center gap-3">
+              <label></label>
+              <div className="dropdown dropdown-hover">
+                <div tabIndex={0} role="button" className="btn m-1">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     fill="none"
@@ -110,27 +129,6 @@ export default function RootLayout({
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
-                    />
-                  </svg>
-                </span>
-              </label>
-            </div>
-            <div className="flex items-center gap-3">
-              <label></label>
-              <div className="dropdown dropdown-hover">
-                <div tabIndex={0} role="button" className="btn m-1">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={1.5}
-                    stroke="currentColor"
-                    className="w-8 h-8"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
                       d="m10.5 21 5.25-11.25L21 21m-9-3h7.5M3 5.621a48.474 48.474 0 0 1 6-.371m0 0c1.12 0 2.233.038 3.334.114M9 5.25V3m3.334 2.364C11.176 10.658 7.69 15.08 3 17.502m9.334-12.138c.896.061 1.785.147 2.666.257m-4.589 8.495a18.023 18.023 0 0 1-3.827-5.802"
                     />
                   </svg>
@@ -138,7 +136,7 @@ export default function RootLayout({
                 </div>
                 <ul
                   tabIndex={0}
-                  className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52"
+                  className="dropdown-content z-[1] menu p-1 shadow bg-base-100 rounded-box w-52"
                 >
                   <li onClick={() => changeLang("vi")}>
                     <a>Tiếng Việt</a>
@@ -187,8 +185,8 @@ export default function RootLayout({
                 <path d="M22.672 15.226l-2.432.811.841 2.515c.33 1.019-.209 2.127-1.23 2.456-1.15.325-2.148-.321-2.463-1.226l-.84-2.518-5.013 1.677.84 2.517c.391 1.203-.434 2.542-1.831 2.542-.88 0-1.601-.564-1.86-1.314l-.842-2.516-2.431.809c-1.135.328-2.145-.317-2.463-1.229-.329-1.018.211-2.127 1.231-2.456l2.432-.809-1.621-4.823-2.432.808c-1.355.384-2.558-.59-2.558-1.839 0-.817.509-1.582 1.327-1.846l2.433-.809-.842-2.515c-.33-1.02.211-2.129 1.232-2.458 1.02-.329 2.13.209 2.461 1.229l.842 2.515 5.011-1.677-.839-2.517c-.403-1.238.484-2.553 1.843-2.553.819 0 1.585.509 1.85 1.326l.841 2.517 2.431-.81c1.02-.33 2.131.211 2.461 1.229.332 1.018-.21 2.126-1.23 2.456l-2.433.809 1.622 4.823 2.433-.809c1.242-.401 2.557.484 2.557 1.838 0 .819-.51 1.583-1.328 1.847m-8.992-6.428l-5.01 1.675 1.619 4.828 5.011-1.674-1.62-4.829z"></path>
               </svg>
               <p className="font-bold">
-                ACME Industries Ltd. <br />
-                Providing reliable tech since 1992
+                namgaxilem Ltd. <br />
+                Self learning
               </p>
               <p>Copyright © 2024 - All right reserved</p>
             </aside>
@@ -231,6 +229,61 @@ export default function RootLayout({
             </nav>
           </footer>
         </div>
+      </div>
+
+      {/* Mobile bottom nav */}
+      <div className="btm-nav md:hidden">
+        <button>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+            />
+          </svg>
+          <span className="btm-nav-label">Home</span>
+        </button>
+        <button className="active">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+          <span className="btm-nav-label">Warnings</span>
+        </button>
+        <button>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+            />
+          </svg>
+          <span className="btm-nav-label">Statics</span>
+        </button>
       </div>
     </>
   );
