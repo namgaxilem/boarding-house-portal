@@ -13,11 +13,17 @@ function generateRandomId() {
 }
 
 export default function getRooms(): Room[] {
-  const myArray = [];
+  const myArray: Room[] = [];
 
   for (var i = 0; i < 11; i++) {
     var obj = {
       id: generateRandomId(),
+      name: "name",
+      imgUrl: "name",
+      description: "name",
+      floor: "name",
+      airConditionQuantity: "name",
+      price: "name",
       // Add other properties as needed
     };
     myArray.push(obj);
