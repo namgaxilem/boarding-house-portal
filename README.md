@@ -1,36 +1,182 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Boarding House Portal — Quản lý nhà trọ
 
-## Getting Started
+Web quản lý nhà trọ nhỏ (~10 phòng). Hai vai trò:
 
-First, run the development server:
+- **Chủ trọ (admin)** — CRUD phòng, CRUD người thuê, cho nhận/trả phòng, lịch sử phòng, nhật ký sửa chữa, quản lý wifi.
+- **Người thuê (tenant)** — xem phòng của mình, wifi, liên hệ chủ trọ, nội quy, sửa thông tin cá nhân.
+
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · Zustand · Supabase.
+
+---
+
+## 1. Chạy thử ngay (chế độ demo)
+
+```bash
+npm install
+npm run dev
+```
+
+Mở http://localhost:3000
+
+Chưa cần Supabase. App tự chạy **chế độ demo**: dữ liệu mẫu 10 phòng + 8 người thuê nằm trong bộ nhớ, **mất khi restart server**.
+
+Tài khoản demo:
+
+| Vai trò | Email | Mật khẩu |
+| --- | --- | --- |
+| Chủ trọ | `admin@nhatro.vn` | `admin123` |
+| Người thuê | `an@example.com` | `demo123` |
+
+> ⚠️ Chế độ demo **không an toàn** (mật khẩu để trần trong mã nguồn). App tự từ chối chạy production ở chế độ này trừ khi đặt `ALLOW_DEMO_MODE=true`.
+
+---
+
+## 2. Sửa thông tin nhà trọ
+
+Mọi thông tin tĩnh nằm ở **một file duy nhất**: `src/config/site.ts`
+
+Tên nhà trọ · địa chỉ · số điện thoại · Zalo · email · số khẩn cấp · số tài khoản ngân hàng · nội quy · đơn giá điện/nước/dịch vụ mặc định · bật/tắt tính năng.
+
+Sửa file đó rồi deploy lại. Không có bảng `settings` trong database — cố ý, để không bao giờ có chuyện hai nơi ghi hai giá trị khác nhau. Trang `/admin/settings` chỉ hiển thị lại nội dung file này để đối chiếu.
+
+Dữ liệu **động** (phòng, người thuê, hợp đồng, wifi) nằm ở database, sửa qua giao diện.
+
+---
+
+## 3. Chuyển sang Supabase thật
+
+### 3.1 Tạo project
+
+1. Tạo project mới tại [supabase.com](https://supabase.com) (free tier).
+2. Vào **SQL Editor**, chạy lần lượt:
+   - `supabase/migrations/0001_schema.sql` — bảng, ràng buộc, trigger
+   - `supabase/migrations/0002_rls.sql` — Row Level Security
+   - `supabase/seed.sql` — *(tuỳ chọn)* 10 phòng mẫu + wifi
+
+### 3.2 Điền biến môi trường
+
+```bash
+cp .env.example .env.local
+```
+
+Lấy giá trị tại **Project Settings → API**:
+
+| Biến | Lấy ở đâu |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon / public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | service_role key — **bí mật** |
+
+> 🔒 `SUPABASE_SERVICE_ROLE_KEY` **không bao giờ** được đặt tiền tố `NEXT_PUBLIC_`. Biến `NEXT_PUBLIC_*` bị nhúng thẳng vào bundle JavaScript gửi xuống trình duyệt; lộ key này là lộ toàn quyền database, bỏ qua mọi RLS.
+
+Có đủ 2 biến `NEXT_PUBLIC_SUPABASE_*` là app tự chuyển sang Supabase — không phải sửa dòng code nào.
+
+### 3.3 Tạo tài khoản chủ trọ đầu tiên
+
+Không thể insert thẳng vào bảng `profiles` — tài khoản phải đi qua Supabase Auth mới đăng nhập được.
+
+1. **Authentication → Users → Add user**: nhập email + mật khẩu, bật *Auto Confirm User*.
+2. Trigger `on_auth_user_created` tự tạo dòng trong `profiles` với `role = 'tenant'`.
+3. Nâng lên admin, chạy trong SQL Editor:
+
+```sql
+update public.profiles set role = 'admin' where email = 'email-cua-ban@example.com';
+```
+
+Từ đó trở đi, tài khoản người thuê được tạo ngay trong giao diện `/admin/tenants/new`.
+
+### 3.4 Kiểm tra
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`GET /api/health` trả `{"mode":"supabase"}` là đã chuyển đúng.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 4. Deploy
 
-## Learn More
+Vercel là đường ngắn nhất: import repo, dán biến môi trường, xong.
 
-To learn more about Next.js, take a look at the following resources:
+> ⚠️ **Vercel Hobby cấm dùng cho mục đích thương mại.** Quản lý nhà trọ cho thuê là vùng xám. Nếu muốn sạch điều khoản mà vẫn free: Cloudflare Workers (qua OpenNext) hoặc Netlify. Rủi ro thấp và đảo ngược được — dữ liệu nằm ở Supabase, đổi chỗ chạy mất khoảng một giờ.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Nhớ đặt `NEXT_PUBLIC_SITE_URL` thành domain thật, nếu không link đặt lại mật khẩu trong email sẽ trỏ về `localhost`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Vận hành (bắt buộc làm)
 
-## Deploy on Vercel
+Hai GitHub Actions đã có sẵn trong `.github/workflows/`:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Workflow | Việc | Secrets cần |
+| --- | --- | --- |
+| `keep-alive.yml` | Ping mỗi ngày. Supabase free **tự pause project sau 7 ngày** không hoạt động | `APP_URL`, `CRON_SECRET` |
+| `backup.yml` | `pg_dump` hàng tuần. Supabase free **không có backup tự động** | `DATABASE_URL` |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Backup không phải tuỳ chọn. Mất dữ liệu người thuê là mất thật.
+
+---
+
+## 5. Cấu trúc
+
+```
+src/
+├─ config/site.ts        ← SỬA THÔNG TIN NHÀ TRỌ Ở ĐÂY
+├─ app/
+│  ├─ (marketing)/       /, /rooms, /contact          — công khai
+│  ├─ (auth)/            /login, /forgot-password, /reset-password
+│  ├─ (admin)/admin/     dashboard, phòng, người thuê, hợp đồng, cài đặt
+│  ├─ (tenant)/me/       phòng của tôi, wifi, liên hệ, nội quy, cá nhân
+│  ├─ auth/callback/     đổi code Supabase lấy session
+│  └─ api/               health, cron/keep-alive
+├─ features/             auth · rooms · tenants · tenancies · wifi · settings
+│                        (mỗi domain: schema.ts + actions.ts + components/)
+├─ components/ui/        primitive kiểu shadcn
+├─ components/common/    form, page-header, empty-state, confirm-form…
+├─ components/layout/    sidebar admin, bottom-nav tenant, user-menu
+├─ lib/
+│  ├─ db/                repository.ts (interface) + demo-adapter + supabase-adapter
+│  ├─ auth/              dal.ts (guard) + session.ts
+│  └─ supabase/          server / client / admin / proxy
+├─ stores/               Zustand — CHỈ state giao diện
+└─ proxy.ts              Next 16 gọi là proxy, trước đây là middleware
+```
+
+### Vài quyết định đáng biết
+
+**Phân quyền 3 lớp, cố ý dư.**
+`proxy.ts` chặn sớm cho mượt UX → `requireAdmin()` trong layout chạy phía server → RLS chặn ở tầng database. Server Action là endpoint POST công khai, ai biết id cũng gọi được, nên mọi action đều tự gọi `requireAdmin()` chứ không tin proxy.
+
+**Trạng thái phòng được suy ra, không lưu.**
+Cột `rooms.status` chỉ mang ý định thủ công của chủ trọ (`maintenance` / `reserved`). "Đang ở" hay "còn trống" tính từ việc có hợp đồng còn hiệu lực hay không, nên hai nguồn không bao giờ lệch nhau.
+
+**Đổi backend là một dòng.**
+Không trang nào chứa chữ "supabase". Tất cả đi qua `Repository` trong `src/lib/db/repository.ts`; `src/lib/db/index.ts` chọn adapter.
+
+**Giá thuê được chụp ảnh lại.**
+`tenancies.monthly_price` lưu giá lúc ký. Tăng giá phòng về sau không sửa lịch sử cũ.
+
+**Người ở cùng đọc qua SQL function, không qua RLS policy.**
+RLS lọc theo dòng chứ không theo cột. Mở dòng `profiles` cho bạn cùng phòng là lộ luôn số điện thoại và ghi chú riêng của chủ trọ. Hàm `my_roommates()` trả đúng 3 cột cần hiển thị.
+
+**Không dùng `loading.tsx`.**
+Trên Next 16.2 + Turbopack, loading boundary cấp route trên một segment dynamic khiến skeleton kẹt lại, nội dung không bao giờ hiện. Trang nào cần streaming thì dùng `<Suspense>` tường minh trong page — cách này chạy đúng (xem `/admin`).
+
+---
+
+## 6. Lệnh
+
+```bash
+npm run dev      # dev server (Turbopack)
+npm run build    # build production
+npm start        # chạy bản build
+npm run lint     # eslint
+npx tsc --noEmit # typecheck
+```
+
+---
+
+## 7. Chưa làm (Phase sau)
+
+Chat · mã mở cổng/vân tay · ghi chỉ số điện nước · hoá đơn · thông báo · lưu ảnh CCCD & hợp đồng.
+
+Bật/tắt hiển thị các tính năng này ở `houseConfig.features` trong `src/config/site.ts`.
