@@ -28,6 +28,15 @@ export const tenantSchema = z.object({
     .refine((value) => value === null || /^0\d{9}$/.test(value), {
       message: "Số điện thoại phải có 10 số và bắt đầu bằng 0",
     }),
+  idNumber: z
+    .string()
+    .trim()
+    .optional()
+    // Người ta hay đọc CCCD theo nhóm ("034 201 001 234"), bỏ khoảng trắng đi.
+    .transform((value) => (value ? value.replace(/[\s.-]/g, "") : null))
+    .refine((value) => value === null || /^(\d{9}|\d{12})$/.test(value), {
+      message: "CCCD phải có 12 số, hoặc CMND cũ 9 số",
+    }),
   dateOfBirth: z
     .string()
     .trim()
@@ -47,7 +56,10 @@ export const createTenantSchema = tenantSchema.extend({
     .max(72, "Mật khẩu tối đa 72 ký tự"),
 });
 
-/** Tenants editing their own profile cannot touch email, note or role. */
+/**
+ * Người thuê tự sửa hồ sơ: không đụng được email, CCCD, ghi chú riêng hay role.
+ * RLS chặn thêm một lớp nữa ở tầng database, phòng khi Server Action bị gọi thẳng.
+ */
 export const ownProfileSchema = tenantSchema.pick({
   fullName: true,
   phone: true,

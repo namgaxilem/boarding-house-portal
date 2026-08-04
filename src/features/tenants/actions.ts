@@ -21,6 +21,7 @@ function readTenantForm(formData: FormData) {
     email: formData.get("email"),
     fullName: formData.get("fullName"),
     phone: formData.get("phone") ?? undefined,
+    idNumber: formData.get("idNumber") ?? undefined,
     dateOfBirth: formData.get("dateOfBirth") ?? undefined,
     hometown: formData.get("hometown") ?? undefined,
     note: formData.get("note") ?? undefined,

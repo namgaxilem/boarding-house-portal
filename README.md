@@ -116,7 +116,53 @@ Từ đó trở đi, tài khoản người thuê được tạo ngay trong giao 
 
 ---
 
-## 4. Deploy
+## 4. Đăng nhập bằng Google / Facebook / Zalo
+
+Mặc định **tắt hết**. Nút chỉ hiện sau khi bật, và chỉ nên bật khi đã có app id — bật mà chưa có thì người dùng bấm vào gặp lỗi.
+
+### Điều cần hiểu trước
+
+App **không cho tự đăng ký** (`enable_signup = false`). Đăng nhập mạng xã hội **không tạo tài khoản mới** — nó chỉ là cách khác để vào một tài khoản chủ trọ đã tạo sẵn. Email lạ bấm Google sẽ bị từ chối, kèm thông báo bảo liên hệ chủ trọ.
+
+Hệ quả thực tế: **email chủ trọ nhập lúc tạo tài khoản phải trùng đúng email của tài khoản Google/Facebook đó.**
+
+### Google / Facebook — 3 bước, thiếu bước nào cũng không chạy
+
+1. Điền id + secret vào `.env.local`:
+   ```
+   SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID=
+   SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET=
+   ```
+2. `supabase/config.toml` → `[auth.external.google]` → `enabled = true` → chạy lại `npm run db:stop && npm run db:start`
+3. `src/config/site.ts` → `houseConfig.login.google = true`
+
+Redirect URI khai bên Google/Facebook console:
+
+| | |
+| --- | --- |
+| Local | `http://127.0.0.1:54321/auth/v1/callback` |
+| Cloud | `https://<project-ref>.supabase.co/auth/v1/callback` |
+
+> Facebook: nhiều tài khoản không trả về email. Những người đó sẽ đăng nhập thất bại — cố ý, vì không có email thì không biết khớp vào hồ sơ nào.
+
+### Zalo — khác hẳn, và chỉ 2 bước
+
+Supabase **không hỗ trợ Zalo**, nên toàn bộ luồng OAuth do app tự xử lý (`src/lib/auth/zalo.ts` + `src/app/auth/zalo/`). Không cần đụng `config.toml`.
+
+1. `.env.local`: `ZALO_APP_ID=` và `ZALO_APP_SECRET=`
+2. `src/config/site.ts` → `houseConfig.login.zalo = true`
+
+Redirect URI khai ở Zalo Developers: `<NEXT_PUBLIC_SITE_URL>/auth/zalo/callback`
+
+**Zalo không trả về email**, nên không thể khớp tài khoản như Google. Luồng dùng ở đây là *liên kết tài khoản*:
+
+1. Người thuê đăng nhập bằng email + mật khẩu như bình thường
+2. Vào **Cá nhân** → bấm **Liên kết tài khoản Zalo**
+3. Từ lần sau, bấm nút Zalo ở trang đăng nhập là vào thẳng
+
+Nếu app Zalo của bạn đã được duyệt quyền đọc số điện thoại thì bỏ qua được bước 1–2: hệ thống tự khớp theo số điện thoại chủ trọ đã nhập trong hồ sơ.
+
+## 5. Deploy
 
 Vercel là đường ngắn nhất: import repo, dán biến môi trường, xong.
 
@@ -137,7 +183,7 @@ Backup không phải tuỳ chọn. Mất dữ liệu người thuê là mất th
 
 ---
 
-## 5. Cấu trúc
+## 6. Cấu trúc
 
 ```
 src/
@@ -193,7 +239,7 @@ Trên Next 16.2 + Turbopack, loading boundary cấp route trên một segment dy
 
 ---
 
-## 6. Lệnh
+## 7. Lệnh
 
 ```bash
 npm run dev      # dev server (Turbopack)
@@ -205,7 +251,7 @@ npx tsc --noEmit # typecheck
 
 ---
 
-## 7. Chưa làm (Phase sau)
+## 8. Chưa làm (Phase sau)
 
 Chat · mã mở cổng/vân tay · ghi chỉ số điện nước · hoá đơn · thông báo · lưu ảnh CCCD & hợp đồng.
 

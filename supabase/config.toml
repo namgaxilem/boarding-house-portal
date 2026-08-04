@@ -413,3 +413,35 @@ enabled = true
 # declarative_schema_path = "./database"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# =============================================================================
+#  Đăng nhập Google / Facebook
+#
+#  Bật `enabled = true` SAU KHI đã có client id + secret, và nhớ bật cờ tương
+#  ứng trong src/config/site.ts (houseConfig.login) để nút hiện ở trang đăng
+#  nhập. Bật một bên mà quên bên kia là nút hiện nhưng bấm vào lỗi.
+#
+#  Secret đọc từ biến môi trường — KHÔNG commit vào git.
+#
+#  Redirect URI khai bên Google/Facebook console:
+#    local: http://127.0.0.1:54321/auth/v1/callback
+#    cloud: https://<project-ref>.supabase.co/auth/v1/callback
+# =============================================================================
+
+[auth.external.google]
+enabled = false
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+redirect_uri = ""
+# Đăng nhập Google ở local bắt buộc bỏ qua nonce check.
+skip_nonce_check = true
+
+[auth.external.facebook]
+enabled = false
+client_id = "env(SUPABASE_AUTH_EXTERNAL_FACEBOOK_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_FACEBOOK_SECRET)"
+redirect_uri = ""
+# Nhiều tài khoản Facebook không trả về email. Giữ `false`: app khớp tài khoản
+# theo email, không có email thì không biết là ai — thà báo lỗi còn hơn tạo
+# nhầm một tài khoản mồ côi.
+email_optional = false

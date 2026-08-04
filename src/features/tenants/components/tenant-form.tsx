@@ -45,6 +45,20 @@ export function TenantForm({ tenant }: { tenant?: Profile }) {
             />
           </Field>
 
+          <Field
+            name="idNumber"
+            label="Số CCCD / CMND"
+            hint="12 số (CCCD) hoặc 9 số (CMND cũ). Chỉ chủ trọ xem và sửa được."
+            errors={errors}
+          >
+            <Input
+              inputMode="numeric"
+              autoComplete="off"
+              defaultValue={tenant?.idNumber ?? ""}
+              placeholder="034201001234"
+            />
+          </Field>
+
           <Field name="dateOfBirth" label="Ngày sinh" errors={errors}>
             <Input type="date" defaultValue={toDateInputValue(tenant?.dateOfBirth)} />
           </Field>

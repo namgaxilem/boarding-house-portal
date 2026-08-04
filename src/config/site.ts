@@ -102,6 +102,24 @@ export const houseConfig = {
     gateCodes: false,
     invoices: false,
   },
+
+  /**
+   * Nút đăng nhập mạng xã hội hiện trên trang /login.
+   *
+   * Bật lên CHỈ sau khi đã điền app id/secret — bật mà chưa có thì người dùng
+   * bấm vào sẽ gặp lỗi khó hiểu. Xem README mục 4 để biết điền ở đâu.
+   *
+   * ⚠️ App KHÔNG cho tự đăng ký. Đăng nhập mạng xã hội chỉ dùng để vào một tài
+   * khoản chủ trọ ĐÃ TẠO SẴN:
+   *   - Google / Facebook: khớp theo email. Email chủ trọ nhập lúc tạo tài khoản
+   *     phải trùng đúng email của tài khoản mạng xã hội đó.
+   *   - Zalo: khớp theo số điện thoại (lần đầu), sau đó nhớ theo Zalo ID.
+   */
+  login: {
+    google: false,
+    facebook: false,
+    zalo: false,
+  },
 } as const;
 
 export type HouseConfig = typeof houseConfig;

@@ -53,6 +53,10 @@ export function describeError(error: unknown, fallback: string): string {
   const messages: Record<string, string> = {
     DUPLICATE_ROOM_CODE: "Mã phòng này đã tồn tại. Chọn mã khác.",
     DUPLICATE_EMAIL: "Email này đã được dùng cho tài khoản khác.",
+    DUPLICATE_ID_NUMBER: "Số CCCD/CMND này đã gắn với một người thuê khác.",
+    DUPLICATE_PHONE: "Số điện thoại này đã gắn với một người thuê khác.",
+    INVALID_ID_NUMBER: "Số CCCD phải có 12 số, hoặc CMND cũ 9 số.",
+    INVALID_PHONE: "Số điện thoại phải có 10 số và bắt đầu bằng 0.",
     ROOM_NOT_FOUND: "Không tìm thấy phòng.",
     ROOM_OCCUPIED: "Phòng đang có người ở. Cho trả phòng trước khi xoá.",
     ROOM_FULL: "Phòng đã đủ số người tối đa.",

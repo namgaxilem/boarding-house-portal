@@ -35,6 +35,8 @@ export interface TenantInput {
   email: string;
   fullName: string;
   phone: string | null;
+  /** CCCD/CMND — chỉ admin nhập và sửa. */
+  idNumber: string | null;
   dateOfBirth: string | null;
   hometown: string | null;
   note: string | null;

@@ -39,9 +39,11 @@ interface ProfileRow {
   full_name: string;
   phone: string | null;
   role: "admin" | "tenant";
+  id_number: string | null;
   date_of_birth: string | null;
   hometown: string | null;
   note: string | null;
+  zalo_id: string | null;
   is_active: boolean;
   created_at: string;
 }
@@ -113,9 +115,11 @@ function toProfile(row: ProfileRow): Profile {
     fullName: row.full_name,
     phone: row.phone,
     role: row.role,
+    idNumber: row.id_number,
     dateOfBirth: row.date_of_birth,
     hometown: row.hometown,
     note: row.note,
+    zaloId: row.zalo_id,
     isActive: row.is_active,
     createdAt: row.created_at,
   };
@@ -216,6 +220,14 @@ function rethrow(error: PostgrestError | null, fallback: string): never {
       throw new Error("TENANT_ALREADY_RENTING");
     }
     if (error.message.includes("email")) throw new Error("DUPLICATE_EMAIL");
+  }
+  if (error?.code === "23505") {
+    if (error.message.includes("id_number")) throw new Error("DUPLICATE_ID_NUMBER");
+    if (error.message.includes("phone")) throw new Error("DUPLICATE_PHONE");
+  }
+  if (error?.code === "23514") {
+    if (error.message.includes("id_number_format")) throw new Error("INVALID_ID_NUMBER");
+    if (error.message.includes("phone_format")) throw new Error("INVALID_PHONE");
   }
   if (error?.code === "23503") throw new Error("ROOM_NOT_FOUND");
   throw new Error(error?.message ?? fallback);
@@ -513,6 +525,7 @@ export const supabaseAdapter: Repository = {
       .update({
         full_name: input.fullName,
         phone: input.phone,
+        id_number: input.idNumber,
         date_of_birth: input.dateOfBirth,
         hometown: input.hometown,
         note: input.note,
@@ -537,6 +550,7 @@ export const supabaseAdapter: Repository = {
         email: input.email,
         full_name: input.fullName,
         phone: input.phone,
+        id_number: input.idNumber,
         date_of_birth: input.dateOfBirth,
         hometown: input.hometown,
         note: input.note,

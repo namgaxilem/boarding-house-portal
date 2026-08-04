@@ -140,6 +140,11 @@ export default async function TenantDetailPage(
                 <dt className="text-muted-foreground">Điện thoại</dt>
                 <dd className="text-right tabular-nums">{formatPhone(tenant.phone)}</dd>
 
+                <dt className="text-muted-foreground">CCCD / CMND</dt>
+                <dd className="text-right font-mono text-xs">
+                  {tenant.idNumber ?? "—"}
+                </dd>
+
                 <dt className="text-muted-foreground">Ngày sinh</dt>
                 <dd className="text-right">{formatDate(tenant.dateOfBirth)}</dd>
 
@@ -148,6 +153,15 @@ export default async function TenantDetailPage(
 
                 <dt className="text-muted-foreground">Tạo lúc</dt>
                 <dd className="text-right">{formatDate(tenant.createdAt)}</dd>
+
+                <dt className="text-muted-foreground">Zalo</dt>
+                <dd className="text-right">
+                  {tenant.zaloId ? (
+                    <Badge variant="success">Đã liên kết</Badge>
+                  ) : (
+                    <span className="text-muted-foreground">Chưa</span>
+                  )}
+                </dd>
               </dl>
 
               {tenant.note && (

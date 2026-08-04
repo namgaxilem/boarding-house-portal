@@ -28,9 +28,16 @@ export interface Profile {
   fullName: string;
   phone: string | null;
   role: Role;
+  /**
+   * Số CCCD/CMND. Dữ liệu cá nhân nhạy cảm — RLS chỉ cho chính chủ và admin
+   * đọc, và người thuê không tự sửa được.
+   */
+  idNumber: string | null;
   dateOfBirth: string | null;
   hometown: string | null;
   note: string | null;
+  /** Điền tự động lần đầu đăng nhập bằng Zalo. */
+  zaloId: string | null;
   isActive: boolean;
   createdAt: string;
 }
