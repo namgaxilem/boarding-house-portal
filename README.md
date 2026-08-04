@@ -9,25 +9,50 @@ Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · Zustand 
 
 ---
 
-## 1. Chạy thử ngay (chế độ demo)
+## 1. Chạy local
+
+App **chỉ chạy với Supabase thật** — không có chế độ giả lập, không mock. Supabase chạy local bằng Docker.
+
+**Cần trước:** Docker Desktop đang chạy, Node 20.9+.
 
 ```bash
 npm install
+npm run db:start
+```
+
+Lệnh `db:start` kéo ~10 container Supabase (lần đầu mất vài phút), tạo Postgres, rồi **tự chạy migration + seed**.
+
+Chạy xong nó in ra `API URL`, `anon key`, `service_role key`. Chép vào `.env.local`:
+
+```bash
+cp .env.example .env.local
+```
+
+Tạo tài khoản chủ trọ đầu tiên rồi khởi động app:
+
+```bash
+npm run create-admin -- admin@nhatro.vn Admin@12345 "Nguyễn Văn Tâm"
 npm run dev
 ```
 
-Mở http://localhost:3000
+| Thứ | Địa chỉ |
+| --- | --- |
+| App | http://localhost:3000 |
+| Supabase Studio (xem/sửa DB trực tiếp) | http://127.0.0.1:54323 |
+| Mailpit (đọc email hệ thống gửi) | http://127.0.0.1:54324 |
+| Postgres | `postgresql://postgres:postgres@127.0.0.1:54322/postgres` |
 
-Chưa cần Supabase. App tự chạy **chế độ demo**: dữ liệu mẫu 10 phòng + 8 người thuê nằm trong bộ nhớ, **mất khi restart server**.
+Lệnh khác:
 
-Tài khoản demo:
+```bash
+npm run db:status   # in lại URL + key
+npm run db:reset    # xoá sạch DB, chạy lại migration + seed
+npm run db:stop     # tắt container
+```
 
-| Vai trò | Email | Mật khẩu |
-| --- | --- | --- |
-| Chủ trọ | `admin@nhatro.vn` | `admin123` |
-| Người thuê | `an@example.com` | `demo123` |
+> `db:reset` xoá cả `auth.users`. Chạy lại `npm run create-admin -- ...` sau mỗi lần reset.
 
-> ⚠️ Chế độ demo **không an toàn** (mật khẩu để trần trong mã nguồn). App tự từ chối chạy production ở chế độ này trừ khi đặt `ALLOW_DEMO_MODE=true`.
+> Key local là key mặc định cố định của Supabase CLI, giống nhau trên mọi máy. Không phải bí mật, nhưng **chỉ dùng cho local** — đừng bao giờ đưa lên server thật.
 
 ---
 
@@ -43,21 +68,23 @@ Dữ liệu **động** (phòng, người thuê, hợp đồng, wifi) nằm ở 
 
 ---
 
-## 3. Chuyển sang Supabase thật
+## 3. Deploy lên Supabase cloud
 
-### 3.1 Tạo project
+Local dùng Docker; lên thật thì trỏ sang project cloud.
 
-1. Tạo project mới tại [supabase.com](https://supabase.com) (free tier).
-2. Vào **SQL Editor**, chạy lần lượt:
-   - `supabase/migrations/0001_schema.sql` — bảng, ràng buộc, trigger
-   - `supabase/migrations/0002_rls.sql` — Row Level Security
-   - `supabase/seed.sql` — *(tuỳ chọn)* 10 phòng mẫu + wifi
+### 3.1 Tạo project và đẩy schema
 
-### 3.2 Điền biến môi trường
+1. Tạo project tại [supabase.com](https://supabase.com) (free tier).
+2. Liên kết và đẩy migration:
 
 ```bash
-cp .env.example .env.local
+npx supabase link --project-ref <project-ref>
+npx supabase db push
 ```
+
+Hoặc thủ công: mở **SQL Editor** rồi chạy lần lượt 2 file trong `supabase/migrations/`, sau đó `supabase/seed.sql` nếu muốn 10 phòng mẫu.
+
+### 3.2 Điền biến môi trường
 
 Lấy giá trị tại **Project Settings → API**:
 
@@ -68,8 +95,6 @@ Lấy giá trị tại **Project Settings → API**:
 | `SUPABASE_SERVICE_ROLE_KEY` | service_role key — **bí mật** |
 
 > 🔒 `SUPABASE_SERVICE_ROLE_KEY` **không bao giờ** được đặt tiền tố `NEXT_PUBLIC_`. Biến `NEXT_PUBLIC_*` bị nhúng thẳng vào bundle JavaScript gửi xuống trình duyệt; lộ key này là lộ toàn quyền database, bỏ qua mọi RLS.
-
-Có đủ 2 biến `NEXT_PUBLIC_SUPABASE_*` là app tự chuyển sang Supabase — không phải sửa dòng code nào.
 
 ### 3.3 Tạo tài khoản chủ trọ đầu tiên
 
@@ -87,11 +112,7 @@ Từ đó trở đi, tài khoản người thuê được tạo ngay trong giao 
 
 ### 3.4 Kiểm tra
 
-```bash
-npm run dev
-```
-
-`GET /api/health` trả `{"mode":"supabase"}` là đã chuyển đúng.
+`GET /api/health` trả `{"ok":true,"database":"up"}` là app đã nối được Postgres thật.
 
 ---
 
@@ -145,6 +166,15 @@ src/
 
 **Phân quyền 3 lớp, cố ý dư.**
 `proxy.ts` chặn sớm cho mượt UX → `requireAdmin()` trong layout chạy phía server → RLS chặn ở tầng database. Server Action là endpoint POST công khai, ai biết id cũng gọi được, nên mọi action đều tự gọi `requireAdmin()` chứ không tin proxy.
+
+**GRANT và RLS là hai thứ khác nhau, phải làm cả hai.**
+RLS lọc *dòng*, nhưng Postgres vẫn cần GRANT ở tầng *bảng* trước. Thiếu GRANT thì truy vấn báo thẳng `permission denied for table rooms`, không phải trả 0 dòng. Xem `migrations/…_grants.sql`.
+
+**Khách vãng lai không có quyền trên bảng nào.**
+Trang giới thiệu lấy phòng trống qua hàm `vacant_rooms()`. Nếu cấp cho `anon` quyền đọc `tenancies` thì RLS trả 0 dòng — và khi đó *mọi* phòng trông như còn trống, kể cả phòng đang có người ở.
+
+**Trigger không tin `user_metadata`.**
+`user_metadata` do chính người dùng gửi lên khi đăng ký. Nếu trigger đọc `role` từ đó, ai POST tới `/auth/v1/signup` kèm `{"role":"admin"}` cũng thành chủ trọ. Mọi tài khoản mới đều là `tenant`; nâng quyền phải làm thủ công. Ngoài ra `[auth] enable_signup = false` — app không có đăng ký công khai.
 
 **Trạng thái phòng được suy ra, không lưu.**
 Cột `rooms.status` chỉ mang ý định thủ công của chủ trọ (`maintenance` / `reserved`). "Đang ở" hay "còn trống" tính từ việc có hợp đồng còn hiệu lực hay không, nên hai nguồn không bao giờ lệch nhau.

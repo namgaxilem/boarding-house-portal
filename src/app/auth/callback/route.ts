@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
-import { isDemoMode } from "@/lib/env";
 
 /**
  * Exchanges the one-time code from a Supabase email link (password reset,
@@ -15,7 +14,7 @@ export async function GET(request: NextRequest) {
   // Reject absolute URLs — an open redirect here would be handed a live session.
   const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/";
 
-  if (isDemoMode || !code) {
+  if (!code) {
     return NextResponse.redirect(`${origin}/login`);
   }
 

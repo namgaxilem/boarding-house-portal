@@ -30,11 +30,16 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files — .env.example is the documented template and must be committed
 .env*
+!.env.example
 
 # vercel
 .vercel
+
+# supabase local stack
+/supabase/.branches
+/supabase/.temp
 
 # typescript
 *.tsbuildinfo

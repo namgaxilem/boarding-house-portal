@@ -3,10 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { requireAdmin, requireUser, setDemoPassword } from "@/lib/auth/dal";
+import { requireAdmin, requireUser } from "@/lib/auth/dal";
 import { db } from "@/lib/db";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isDemoMode } from "@/lib/env";
 import {
   describeError,
   fail,
@@ -127,13 +126,9 @@ export async function resetTenantPassword(
     });
   }
 
-  if (isDemoMode) {
-    await setDemoPassword(tenantId, password);
-  } else {
-    const admin = createAdminClient();
-    const { error } = await admin.auth.admin.updateUserById(tenantId, { password });
-    if (error) return fail("Không đặt lại được mật khẩu. Thử lại.");
-  }
+  const admin = createAdminClient();
+  const { error } = await admin.auth.admin.updateUserById(tenantId, { password });
+  if (error) return fail("Không đặt lại được mật khẩu. Thử lại.");
 
   return ok("Đã đặt mật khẩu mới. Nhớ đưa lại cho người thuê và nhắc họ đổi.");
 }

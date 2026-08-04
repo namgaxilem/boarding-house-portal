@@ -100,11 +100,14 @@ create policy profiles_admin_write on public.profiles
 
 -- ---------------------------------------------------------------- rooms
 
--- Thông tin phòng (mã, diện tích, giá) không phải bí mật và trang giới thiệu
--- công khai cần đọc được, nên cho phép đọc rộng. Ghi thì chỉ admin.
+-- Mọi người ĐÃ ĐĂNG NHẬP đều đọc được thông tin phòng (mã, diện tích, giá) —
+-- không phải bí mật, và người thuê cần thấy phòng của mình.
+--
+-- Khách vãng lai (anon) KHÔNG có quyền gì trên bảng này. Trang giới thiệu công
+-- khai lấy dữ liệu qua hàm `public.vacant_rooms()` — xem migration 0003.
 drop policy if exists rooms_select_all on public.rooms;
 create policy rooms_select_all on public.rooms
-  for select to anon, authenticated
+  for select to authenticated
   using (true);
 
 drop policy if exists rooms_admin_write on public.rooms;

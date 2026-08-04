@@ -154,6 +154,11 @@ create table if not exists public.wifi_networks (
 
 -- ------------------------------------------- tự tạo profile khi có auth user
 
+-- ⚠️  KHÔNG BAO GIỜ đọc `role` từ raw_user_meta_data.
+--
+-- user_metadata do CHÍNH NGƯỜI DÙNG gửi lên khi đăng ký. Nếu trigger tin vào đó,
+-- bất kỳ ai POST tới /auth/v1/signup kèm {"role":"admin"} sẽ tự thành chủ trọ.
+-- Mọi tài khoản mới đều là 'tenant'. Nâng quyền admin phải làm thủ công bằng SQL.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -166,7 +171,7 @@ begin
     new.id,
     new.email,
     coalesce(new.raw_user_meta_data ->> 'full_name', split_part(new.email, '@', 1)),
-    coalesce((new.raw_user_meta_data ->> 'role')::public.user_role, 'tenant'),
+    'tenant',
     new.raw_user_meta_data ->> 'phone'
   )
   on conflict (id) do nothing;

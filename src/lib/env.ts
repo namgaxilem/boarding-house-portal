@@ -1,45 +1,31 @@
 /**
- * Environment detection.
+ * Environment configuration.
  *
- * The app runs in one of two modes:
- *
- *  - `supabase` — real Postgres + Supabase Auth. Active when both public
- *    Supabase vars are present.
- *  - `demo`     — in-memory seeded data and a cookie session. Lets the UI be
- *    reviewed before any Supabase project exists.
- *
- * Demo mode is a development convenience and is NOT secure: it accepts a fixed
- * set of demo passwords and stores data in process memory. It refuses to start
- * in a production build unless explicitly forced.
+ * The app talks to Supabase and nothing else — there is no in-memory fallback.
+ * Missing configuration fails loudly on the first request rather than silently
+ * serving an empty or fake database.
  */
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
-
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
-
-export const isDemoMode = !isSupabaseConfigured;
 
 export const env = {
-  supabaseUrl: supabaseUrl ?? "",
-  supabaseAnonKey: supabaseAnonKey ?? "",
-  siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+  supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? "",
+  supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "",
+  siteUrl: process.env.NEXT_PUBLIC_SITE_URL?.trim() ?? "http://localhost:3000",
 };
 
+export const isSupabaseConfigured = Boolean(env.supabaseUrl && env.supabaseAnonKey);
+
 /**
- * Call from server-only entry points. Shipping demo mode to production would
- * mean anyone who guesses a demo password gets admin, so fail loudly instead.
+ * Guards every entry point that needs a database.
+ *
+ * Checked at call time, not at module load: `next build` must be able to compile
+ * the app on a machine that has no `.env.local`.
  */
-export function assertRuntimeSafe() {
-  if (
-    isDemoMode &&
-    process.env.NODE_ENV === "production" &&
-    process.env.ALLOW_DEMO_MODE !== "true"
-  ) {
+export function assertSupabaseConfigured() {
+  if (!isSupabaseConfigured) {
     throw new Error(
-      "Chạy production nhưng chưa cấu hình Supabase. " +
-        "Đặt NEXT_PUBLIC_SUPABASE_URL và NEXT_PUBLIC_SUPABASE_ANON_KEY, " +
-        "hoặc đặt ALLOW_DEMO_MODE=true nếu cố ý deploy bản demo.",
+      "Chưa cấu hình Supabase. Đặt NEXT_PUBLIC_SUPABASE_URL và " +
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY trong .env.local " +
+        "(chạy `npx supabase start` rồi `npx supabase status` để lấy giá trị).",
     );
   }
 }
@@ -49,7 +35,7 @@ export function getServiceRoleKey() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!key) {
     throw new Error(
-      "Thiếu SUPABASE_SERVICE_ROLE_KEY — cần key này để tạo/xóa tài khoản người thuê.",
+      "Thiếu SUPABASE_SERVICE_ROLE_KEY — cần key này để tạo/xoá tài khoản người thuê.",
     );
   }
   return key;

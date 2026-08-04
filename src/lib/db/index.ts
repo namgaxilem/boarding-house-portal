@@ -1,23 +1,22 @@
 import "server-only";
 
-import { isSupabaseConfigured } from "@/lib/env";
-import { demoAdapter } from "./demo-adapter";
 import { supabaseAdapter } from "./supabase-adapter";
 import type { Repository } from "./repository";
 
 /**
- * The one place a storage backend is chosen.
+ * The one place a storage backend is wired in.
  *
  * Pages and Server Actions import `db` and know nothing else — no page contains
- * the word "supabase". Filling in the Supabase env vars flips the whole app over
- * with no other code change.
+ * the word "supabase". Swapping backends means changing this line and writing an
+ * adapter that satisfies `Repository`.
  */
-export const db: Repository = isSupabaseConfigured ? supabaseAdapter : demoAdapter;
+export const db: Repository = supabaseAdapter;
 
 export type {
   EndTenancyInput,
   RecentEvent,
   Repository,
+  Roommate,
   RoomEventInput,
   RoomFilter,
   RoomInput,

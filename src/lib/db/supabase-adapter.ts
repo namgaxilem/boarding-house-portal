@@ -225,7 +225,13 @@ function rethrow(error: PostgrestError | null, fallback: string): never {
 /*  Shared read helpers                                                       */
 /* -------------------------------------------------------------------------- */
 
-/** Occupancy is derived. See the identical rule in demo-adapter.ts. */
+/**
+ * Occupancy is derived, never stored.
+ *
+ * `rooms.status` only carries the landlord's manual intent — "maintenance" or
+ * "reserved". Whether a room is occupied comes from whether an active tenancy
+ * exists, so the two can never disagree.
+ */
 function effectiveStatus(room: Room, activeCount: number): RoomStatus {
   if (room.status === "maintenance" || room.status === "reserved") return room.status;
   return activeCount > 0 ? "occupied" : "vacant";
@@ -369,9 +375,17 @@ export const supabaseAdapter: Repository = {
   },
 
   async listVacantRooms() {
-    // RoomWithOccupancy extends Room, so this already satisfies Room[].
-    const rooms = await loadRoomsWithOccupancy();
-    return rooms.filter((r) => r.status === "vacant");
+    const supabase = await createClient();
+
+    // An RPC, not a table read: this powers the public landing page, where the
+    // caller is `anon`. Anon has no grant on `tenancies` — and granting one
+    // would be worse, since RLS would return zero rows and every occupied room
+    // would look available. The SECURITY DEFINER function computes vacancy
+    // server-side and returns only room columns.
+    const { data, error } = await supabase.rpc("vacant_rooms");
+    if (error) rethrow(error, "Không đọc được danh sách phòng trống");
+
+    return (data as RoomRow[]).map(toRoom);
   },
 
   /* -------------------------------------------------------------- tenants */

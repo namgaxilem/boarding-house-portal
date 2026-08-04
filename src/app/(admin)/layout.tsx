@@ -2,7 +2,6 @@ import { requireAdmin } from "@/lib/auth/dal";
 import { AdminMobileNav, AdminSidebar } from "@/components/layout/admin-nav";
 import { UserMenu } from "@/components/layout/user-menu";
 import { ThemeToggle } from "@/components/common/theme";
-import { DemoBanner } from "@/components/common/demo-banner";
 
 // Everything under /admin is per-user and per-request; none of it may be baked
 // into the build output.
@@ -25,7 +24,6 @@ export default async function AdminLayout({
       <AdminSidebar />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <DemoBanner />
 
         <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-border bg-background/85 px-4 backdrop-blur">
           <AdminMobileNav />

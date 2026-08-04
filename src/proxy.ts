@@ -1,8 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { SESSION_COOKIE, decodeSession } from "@/lib/auth/session";
 import { updateSupabaseSession } from "@/lib/supabase/proxy";
-import { isDemoMode } from "@/lib/env";
 
 /**
  * Proxy — what Next.js called Middleware before v16.
@@ -10,11 +8,15 @@ import { isDemoMode } from "@/lib/env";
  * Two jobs:
  *   1. Keep the Supabase session fresh (it rotates access tokens).
  *   2. Optimistic route guarding, so a signed-out visitor never sees a flash of
- *      the dashboard and each role lands on its own home.
+ *      the dashboard.
  *
  * This is NOT the security boundary. `requireAdmin()` in the layouts and RLS in
  * the database are what actually protect data — a proxy check can be bypassed by
- * calling a Server Action directly.
+ * POSTing to a Server Action directly.
+ *
+ * It never queries the database, so it stays cheap on every request. That is why
+ * the role check lives in the admin layout instead of here: reading `role` would
+ * cost a round-trip per request, and the layout has to check anyway.
  */
 
 const PUBLIC_PATHS = new Set([
@@ -28,6 +30,13 @@ const PUBLIC_PATHS = new Set([
 
 const PUBLIC_PREFIXES = ["/api/health", "/api/cron", "/auth"];
 
+/** Supabase stores its session as `sb-<project-ref>-auth-token[.n]` cookies. */
+function clearAuthCookies(request: NextRequest, response: NextResponse) {
+  for (const cookie of request.cookies.getAll()) {
+    if (cookie.name.startsWith("sb-")) response.cookies.delete(cookie.name);
+  }
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -35,35 +44,19 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const isPublic = PUBLIC_PATHS.has(pathname);
-
   // The app bounced someone here because their session no longer resolves to a
-  // live account (deleted, disabled, or a demo restart). Drop the stale cookie
-  // and let the login page render — redirecting them "home" again would loop.
+  // live account (deleted or disabled). Drop the stale cookies and let the login
+  // page render — redirecting them "home" again would loop forever.
   if (pathname === "/login" && request.nextUrl.searchParams.has("expired")) {
     const cleared = NextResponse.next();
-    cleared.cookies.delete(SESSION_COOKIE);
+    clearAuthCookies(request, cleared);
     return cleared;
   }
 
-  // `role` is only known cheaply in demo mode, where it is signed into the
-  // cookie. In Supabase mode the role check happens in the admin layout, one
-  // extra hop but no per-request database round-trip here.
-  let response = NextResponse.next({ request });
-  let signedIn = false;
-  let role: "admin" | "tenant" | null = null;
+  const { response, user } = await updateSupabaseSession(request);
+  const isPublic = PUBLIC_PATHS.has(pathname);
 
-  if (isDemoMode) {
-    const session = await decodeSession(request.cookies.get(SESSION_COOKIE)?.value);
-    signedIn = session !== null;
-    role = session?.role ?? null;
-  } else {
-    const result = await updateSupabaseSession(request);
-    response = result.response;
-    signedIn = result.user !== null;
-  }
-
-  if (!signedIn) {
+  if (!user) {
     if (isPublic) return response;
 
     const url = request.nextUrl.clone();
@@ -73,15 +66,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (pathname === "/login") {
-    return NextResponse.redirect(new URL(role === "tenant" ? "/me" : "/admin", request.url));
-  }
-
-  // Redirect rather than 403: a tenant should not learn which admin routes exist.
-  if (pathname.startsWith("/admin") && role === "tenant") {
-    return NextResponse.redirect(new URL("/me", request.url));
-  }
-
+  // An already signed-in visitor hitting /login is handled by the page itself,
+  // not here: sending them "home" needs their role, and reading it would cost a
+  // database round-trip on every single request just to serve one rare case.
   return response;
 }
 

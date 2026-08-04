@@ -1,18 +1,10 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import {
-  checkDemoPassword,
-  getCurrentUser,
-  requireUser,
-  setDemoPassword,
-  verifyDemoCredentials,
-} from "@/lib/auth/dal";
-import { SESSION_COOKIE, encodeSession, sessionCookieOptions } from "@/lib/auth/session";
+import { getCurrentUser, requireUser } from "@/lib/auth/dal";
 import { createClient } from "@/lib/supabase/server";
-import { isDemoMode, env } from "@/lib/env";
+import { env } from "@/lib/env";
 import { HOME_PATH } from "@/lib/constants";
 import { fail, invalid, ok, type ActionResult } from "@/lib/action-result";
 
@@ -42,45 +34,27 @@ export async function signIn(
   if (!parsed.success) return invalid(parsed.error);
 
   const { email, password, next } = parsed.data;
-  let destination: string;
 
-  if (isDemoMode) {
-    const user = await verifyDemoCredentials(email, password);
-    if (!user) return fail("Email hoặc mật khẩu không đúng.");
+  const supabase = await createClient();
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
 
-    (await cookies()).set(
-      SESSION_COOKIE,
-      await encodeSession(user),
-      sessionCookieOptions,
-    );
-    destination = safeNext(next, HOME_PATH[user.role]);
-  } else {
-    const supabase = await createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+  // Deliberately vague: a distinct "no such account" message would let anyone
+  // enumerate which emails are registered.
+  if (error) return fail("Email hoặc mật khẩu không đúng.");
 
-    // Deliberately vague: a distinct "no such account" message would let anyone
-    // enumerate which emails are registered.
-    if (error) return fail("Email hoặc mật khẩu không đúng.");
-
-    const user = await getCurrentUser();
-    if (!user) {
-      await supabase.auth.signOut();
-      return fail("Tài khoản đã bị khoá. Liên hệ chủ trọ.");
-    }
-    destination = safeNext(next, HOME_PATH[user.role]);
+  const user = await getCurrentUser();
+  if (!user) {
+    await supabase.auth.signOut();
+    return fail("Tài khoản đã bị khoá. Liên hệ chủ trọ.");
   }
 
   // redirect() throws a control-flow exception — nothing after it runs.
-  redirect(destination);
+  redirect(safeNext(next, HOME_PATH[user.role]));
 }
 
 export async function signOut() {
-  if (isDemoMode) {
-    (await cookies()).delete(SESSION_COOKIE);
-  } else {
-    const supabase = await createClient();
-    await supabase.auth.signOut();
-  }
+  const supabase = await createClient();
+  await supabase.auth.signOut();
   redirect("/login");
 }
 
@@ -90,10 +64,6 @@ export async function requestPasswordReset(
 ): Promise<ActionResult<string>> {
   const parsed = forgotPasswordSchema.safeParse({ email: formData.get("email") });
   if (!parsed.success) return invalid(parsed.error);
-
-  if (isDemoMode) {
-    return ok("Bản demo chưa gửi được email. Liên hệ chủ trọ để được đặt lại mật khẩu.");
-  }
 
   const supabase = await createClient();
   await supabase.auth.resetPasswordForEmail(parsed.data.email, {
@@ -114,13 +84,6 @@ export async function resetPassword(
   });
   if (!parsed.success) return invalid(parsed.error);
 
-  if (isDemoMode) {
-    const user = await getCurrentUser();
-    if (!user) return fail("Phiên đã hết hạn, đăng nhập lại.");
-    await setDemoPassword(user.id, parsed.data.password);
-    return ok("Đã đổi mật khẩu.");
-  }
-
   const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
   if (error) return fail("Link đã hết hạn hoặc không hợp lệ. Yêu cầu link mới.");
@@ -140,16 +103,6 @@ export async function changePassword(
     confirmPassword: formData.get("confirmPassword"),
   });
   if (!parsed.success) return invalid(parsed.error);
-
-  if (isDemoMode) {
-    if (!(await checkDemoPassword(user.id, parsed.data.currentPassword))) {
-      return invalid({
-        issues: [{ path: ["currentPassword"], message: "Mật khẩu hiện tại không đúng" }],
-      });
-    }
-    await setDemoPassword(user.id, parsed.data.newPassword);
-    return ok("Đã đổi mật khẩu.");
-  }
 
   const supabase = await createClient();
 

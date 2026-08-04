@@ -2,7 +2,6 @@ import Link from "next/link";
 import { BuildingIcon } from "lucide-react";
 
 import { ThemeToggle } from "@/components/common/theme";
-import { DemoBanner } from "@/components/common/demo-banner";
 import { houseConfig } from "@/config/site";
 
 export default function AuthLayout({
@@ -10,7 +9,6 @@ export default function AuthLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <div className="flex min-h-dvh flex-col bg-gradient-to-b from-accent/40 to-background">
-      <DemoBanner />
 
       <div className="flex items-center justify-between px-4 py-4">
         <Link href="/" className="flex items-center gap-2.5 font-semibold">

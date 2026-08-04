@@ -3,7 +3,6 @@ import { BuildingIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/common/theme";
-import { DemoBanner } from "@/components/common/demo-banner";
 import { houseConfig, fullAddress } from "@/config/site";
 
 export default function MarketingLayout({
@@ -11,7 +10,6 @@ export default function MarketingLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <div className="flex min-h-dvh flex-col">
-      <DemoBanner />
 
       <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-3 px-4">
