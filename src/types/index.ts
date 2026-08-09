@@ -83,6 +83,17 @@ export interface RoomEvent {
   createdBy: string | null;
 }
 
+export interface RoomPhoto {
+  id: string;
+  roomId: string;
+  storagePath: string;
+  /** URL công khai đầy đủ, dựng sẵn ở tầng adapter. */
+  url: string;
+  caption: string | null;
+  sortOrder: number;
+  createdAt: string;
+}
+
 export interface WifiNetwork {
   id: string;
   ssid: string;
@@ -104,6 +115,11 @@ export interface Occupant {
 
 export interface RoomWithOccupancy extends Room {
   occupants: Occupant[];
+}
+
+/** Phòng kèm ảnh — dùng cho trang giới thiệu và trang chi tiết. */
+export interface RoomWithPhotos extends Room {
+  photos: RoomPhoto[];
 }
 
 export interface TenancyDetail extends Tenancy {

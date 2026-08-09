@@ -1,6 +1,8 @@
 import type {
   AdminStats,
   Profile,
+  RoomPhoto,
+  RoomWithPhotos,
   Room,
   RoomEvent,
   RoomStatus,
@@ -103,7 +105,18 @@ export interface Repository {
   createRoom(input: RoomInput): Promise<Room>;
   updateRoom(id: string, input: RoomInput): Promise<Room>;
   deleteRoom(id: string): Promise<void>;
-  listVacantRooms(): Promise<Room[]>;
+  listVacantRooms(): Promise<RoomWithPhotos[]>;
+
+  /* ảnh phòng */
+  listRoomPhotos(roomId: string): Promise<RoomPhoto[]>;
+  /** Upload lên Storage rồi ghi lại một dòng. Trả về ảnh vừa thêm. */
+  addRoomPhoto(roomId: string, file: File): Promise<RoomPhoto>;
+  /** Xoá cả dòng trong bảng lẫn file trong bucket. */
+  deleteRoomPhoto(photoId: string): Promise<void>;
+  /** Đưa ảnh lên đầu danh sách — ảnh đầu chính là ảnh bìa. */
+  setRoomCoverPhoto(photoId: string): Promise<void>;
+  /** Đổi chỗ một ảnh với ảnh liền kề. `direction` = -1 lên, 1 xuống. */
+  moveRoomPhoto(photoId: string, direction: -1 | 1): Promise<void>;
 
   /* tenants */
   listTenants(): Promise<TenantWithCurrentRoom[]>;

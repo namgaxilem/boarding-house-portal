@@ -67,6 +67,8 @@ export function describeError(error: unknown, fallback: string): string {
     TENANCY_ALREADY_ENDED: "Hợp đồng này đã kết thúc rồi.",
     END_BEFORE_START: "Ngày trả phòng không được trước ngày nhận phòng.",
     WIFI_NOT_FOUND: "Không tìm thấy mạng wifi.",
+    PHOTO_UPLOAD_FORBIDDEN:
+      "Không có quyền tải ảnh lên. Đăng nhập lại bằng tài khoản chủ trọ.",
   };
 
   return messages[code] ?? fallback;

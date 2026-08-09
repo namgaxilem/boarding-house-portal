@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowRightIcon,
   CheckIcon,
@@ -115,7 +116,18 @@ export default async function LandingPage() {
             <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {vacantRooms.slice(0, 3).map((room) => (
                 <li key={room.id}>
-                  <Card className="h-full">
+                  <Card className="h-full overflow-hidden">
+                    {room.photos.length > 0 && (
+                      <div className="relative aspect-4/3 bg-secondary">
+                        <Image
+                          src={room.photos[0].url}
+                          alt={`Ảnh phòng ${room.code}`}
+                          fill
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                          className="object-cover"
+                        />
+                      </div>
+                    )}
                     <CardContent className="space-y-3 p-5">
                       <div className="flex items-center justify-between gap-2">
                         <span className="flex items-center gap-2 font-semibold">

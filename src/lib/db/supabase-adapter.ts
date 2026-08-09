@@ -4,13 +4,16 @@ import type { PostgrestError } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { env } from "@/lib/env";
 import type {
   AdminStats,
   Profile,
   Room,
   RoomEvent,
+  RoomPhoto,
   RoomStatus,
   RoomWithOccupancy,
+  RoomWithPhotos,
   Tenancy,
   TenancyDetail,
   TenantWithCurrentRoom,
@@ -86,6 +89,15 @@ interface RoomEventRow {
   cost: number | string | null;
   occurred_at: string;
   created_by: string | null;
+}
+
+interface RoomPhotoRow {
+  id: string;
+  room_id: string;
+  storage_path: string;
+  caption: string | null;
+  sort_order: number;
+  created_at: string;
 }
 
 interface WifiRow {
@@ -168,6 +180,28 @@ function toRoomEvent(row: RoomEventRow): RoomEvent {
     cost: row.cost === null ? null : num(row.cost),
     occurredAt: row.occurred_at,
     createdBy: row.created_by,
+  };
+}
+
+export const ROOM_PHOTO_BUCKET = "room-photos";
+
+/**
+ * Bucket là public nên URL dựng được bằng chuỗi thuần, không cần ký và không
+ * hết hạn — đúng thứ `next/image` và thẻ og:image cần.
+ */
+function publicPhotoUrl(storagePath: string) {
+  return `${env.supabaseUrl}/storage/v1/object/public/${ROOM_PHOTO_BUCKET}/${storagePath}`;
+}
+
+function toRoomPhoto(row: RoomPhotoRow): RoomPhoto {
+  return {
+    id: row.id,
+    roomId: row.room_id,
+    storagePath: row.storage_path,
+    url: publicPhotoUrl(row.storage_path),
+    caption: row.caption,
+    sortOrder: row.sort_order,
+    createdAt: row.created_at,
   };
 }
 
@@ -386,7 +420,7 @@ export const supabaseAdapter: Repository = {
     if (error) rethrow(error, "Không xoá được phòng");
   },
 
-  async listVacantRooms() {
+  async listVacantRooms(): Promise<RoomWithPhotos[]> {
     const supabase = await createClient();
 
     // An RPC, not a table read: this powers the public landing page, where the
@@ -397,7 +431,174 @@ export const supabaseAdapter: Repository = {
     const { data, error } = await supabase.rpc("vacant_rooms");
     if (error) rethrow(error, "Không đọc được danh sách phòng trống");
 
-    return (data as RoomRow[]).map(toRoom);
+    const rooms = (data as RoomRow[]).map(toRoom);
+    if (rooms.length === 0) return [];
+
+    const { data: photoRows, error: photoError } = await supabase
+      .from("room_photos")
+      .select("*")
+      .in("room_id", rooms.map((room) => room.id))
+      .order("sort_order");
+    if (photoError) rethrow(photoError, "Không đọc được ảnh phòng");
+
+    const byRoom = new Map<string, RoomPhoto[]>();
+    for (const row of (photoRows ?? []) as RoomPhotoRow[]) {
+      const list = byRoom.get(row.room_id) ?? [];
+      list.push(toRoomPhoto(row));
+      byRoom.set(row.room_id, list);
+    }
+
+    return rooms.map((room) => ({ ...room, photos: byRoom.get(room.id) ?? [] }));
+  },
+
+  /* ---------------------------------------------------------- ảnh phòng --- */
+
+  async listRoomPhotos(roomId) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("room_photos")
+      .select("*")
+      .eq("room_id", roomId)
+      .order("sort_order");
+    if (error) rethrow(error, "Không đọc được ảnh phòng");
+    return (data as RoomPhotoRow[]).map(toRoomPhoto);
+  },
+
+  async addRoomPhoto(roomId, file) {
+    const supabase = await createClient();
+
+    const extension =
+      { "image/webp": "webp", "image/png": "png", "image/jpeg": "jpg" }[file.type] ??
+      "jpg";
+    const storagePath = `${roomId}/${crypto.randomUUID()}.${extension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(ROOM_PHOTO_BUCKET)
+      .upload(storagePath, file, { contentType: file.type, upsert: false });
+
+    if (uploadError) {
+      throw new Error(
+        /row-level security|Unauthorized/i.test(uploadError.message)
+          ? "PHOTO_UPLOAD_FORBIDDEN"
+          : `Không tải được ảnh lên: ${uploadError.message}`,
+      );
+    }
+
+    // Ảnh mới xuống cuối danh sách, không tự cướp chỗ ảnh bìa đang có.
+    const { data: last } = await supabase
+      .from("room_photos")
+      .select("sort_order")
+      .eq("room_id", roomId)
+      .order("sort_order", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const { data, error } = await supabase
+      .from("room_photos")
+      .insert({
+        room_id: roomId,
+        storage_path: storagePath,
+        sort_order: ((last?.sort_order as number | undefined) ?? -1) + 1,
+      })
+      .select("*")
+      .single();
+
+    if (error) {
+      // Ghi bảng hỏng thì file vừa lên thành rác vĩnh viễn — dọn ngay.
+      await supabase.storage.from(ROOM_PHOTO_BUCKET).remove([storagePath]);
+      rethrow(error, "Không lưu được ảnh");
+    }
+
+    return toRoomPhoto(data as RoomPhotoRow);
+  },
+
+  async deleteRoomPhoto(photoId) {
+    const supabase = await createClient();
+
+    const { data: photo, error: findError } = await supabase
+      .from("room_photos")
+      .select("storage_path")
+      .eq("id", photoId)
+      .maybeSingle();
+    if (findError) rethrow(findError, "Không tìm được ảnh");
+    if (!photo) return;
+
+    const { error } = await supabase.from("room_photos").delete().eq("id", photoId);
+    if (error) rethrow(error, "Không xoá được ảnh");
+
+    // Xoá file SAU khi xoá dòng: nếu làm ngược lại mà xoá dòng lỗi thì giao diện
+    // còn ảnh nhưng file đã mất, hiện ra ảnh vỡ.
+    await supabase.storage
+      .from(ROOM_PHOTO_BUCKET)
+      .remove([photo.storage_path as string]);
+  },
+
+  async setRoomCoverPhoto(photoId) {
+    const supabase = await createClient();
+
+    const { data: photo, error: findError } = await supabase
+      .from("room_photos")
+      .select("id, room_id")
+      .eq("id", photoId)
+      .maybeSingle();
+    if (findError) rethrow(findError, "Không tìm được ảnh");
+    if (!photo) return;
+
+    const { data: siblings, error: listError } = await supabase
+      .from("room_photos")
+      .select("id")
+      .eq("room_id", photo.room_id as string)
+      .order("sort_order");
+    if (listError) rethrow(listError, "Không đọc được danh sách ảnh");
+
+    // Đánh số lại toàn bộ với ảnh được chọn ở vị trí 0. Rẻ hơn nghĩ cách khéo —
+    // một phòng chỉ có vài ảnh.
+    const ordered = [
+      photoId,
+      ...(siblings as { id: string }[]).map((s) => s.id).filter((id) => id !== photoId),
+    ];
+
+    for (const [index, id] of ordered.entries()) {
+      const { error } = await supabase
+        .from("room_photos")
+        .update({ sort_order: index })
+        .eq("id", id);
+      if (error) rethrow(error, "Không đặt được ảnh bìa");
+    }
+  },
+
+  async moveRoomPhoto(photoId, direction) {
+    const supabase = await createClient();
+
+    const { data: photo, error: findError } = await supabase
+      .from("room_photos")
+      .select("id, room_id")
+      .eq("id", photoId)
+      .maybeSingle();
+    if (findError) rethrow(findError, "Không tìm được ảnh");
+    if (!photo) return;
+
+    const { data: siblings, error: listError } = await supabase
+      .from("room_photos")
+      .select("id")
+      .eq("room_id", photo.room_id as string)
+      .order("sort_order");
+    if (listError) rethrow(listError, "Không đọc được danh sách ảnh");
+
+    const ids = (siblings as { id: string }[]).map((s) => s.id);
+    const from = ids.indexOf(photoId);
+    const to = from + direction;
+    if (from === -1 || to < 0 || to >= ids.length) return;
+
+    [ids[from], ids[to]] = [ids[to], ids[from]];
+
+    for (const [index, id] of ids.entries()) {
+      const { error } = await supabase
+        .from("room_photos")
+        .update({ sort_order: index })
+        .eq("id", id);
+      if (error) rethrow(error, "Không đổi được thứ tự ảnh");
+    }
   },
 
   /* -------------------------------------------------------------- tenants */

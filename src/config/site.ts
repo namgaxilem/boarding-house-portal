@@ -116,9 +116,9 @@ export const houseConfig = {
    *   - Zalo: khớp theo số điện thoại (lần đầu), sau đó nhớ theo Zalo ID.
    */
   login: {
-    google: false,
-    facebook: false,
-    zalo: false,
+    google: true,
+    facebook: true,
+    zalo: true,
   },
 } as const;
 

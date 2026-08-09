@@ -234,6 +234,15 @@ Không trang nào chứa chữ "supabase". Tất cả đi qua `Repository` trong
 **Người ở cùng đọc qua SQL function, không qua RLS policy.**
 RLS lọc theo dòng chứ không theo cột. Mở dòng `profiles` cho bạn cùng phòng là lộ luôn số điện thoại và ghi chú riêng của chủ trọ. Hàm `my_roommates()` trả đúng 3 cột cần hiển thị.
 
+**Ảnh phòng nén trong trình duyệt, không nén ở server.**
+Ảnh điện thoại 3–6MB được canvas thu về ≤1600px / ~300–500KB *trước khi* rời máy người dùng. Tiết kiệm cả 1GB storage lẫn băng thông, và không cần dịch vụ resize trả phí nào. Supabase free **không có** API transform ảnh — đó là tính năng Pro. Nhớ giữ `imageOrientation: "from-image"` khi vẽ lên canvas, thiếu nó là ảnh chụp dọc hiện nằm ngang.
+
+**Bucket ảnh phòng để public, nhưng chỉ admin ghi.**
+Khách vãng lai phải xem được ảnh ở trang giới thiệu. Policy trên `storage.objects` chặn mọi thao tác ghi/xoá của người không phải admin. Lưu ý khi tự kiểm tra: API xoá của Supabase Storage trả **200 kèm mảng rỗng** khi RLS chặn — nghĩa là "đã xoá 0 file", không phải xoá thành công.
+
+**`dangerouslyAllowLocalIP` bật theo điều kiện.**
+Next.js 16 chặn tối ưu ảnh từ IP nội bộ, nên Supabase local (`127.0.0.1:54321`) làm `next/image` trả 400. `next.config.ts` chỉ bật cờ này khi host Supabase thực sự là địa chỉ nội bộ — trỏ sang cloud là tự tắt.
+
 **Không dùng `loading.tsx`.**
 Trên Next 16.2 + Turbopack, loading boundary cấp route trên một segment dynamic khiến skeleton kẹt lại, nội dung không bao giờ hiện. Trang nào cần streaming thì dùng `<Suspense>` tường minh trong page — cách này chạy đúng (xem `/admin`).
 

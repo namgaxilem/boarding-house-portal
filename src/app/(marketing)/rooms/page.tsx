@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { DoorOpenIcon, PhoneIcon } from "lucide-react";
+import Image from "next/image";
+import { DoorOpenIcon, ImageOffIcon, PhoneIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,7 +48,31 @@ export default async function PublicRoomsPage() {
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {rooms.map((room) => (
             <li key={room.id}>
-              <Card className="h-full">
+              <Card className="h-full overflow-hidden">
+                {room.photos.length > 0 ? (
+                  <div className="relative aspect-4/3 bg-secondary">
+                    <Image
+                      src={room.photos[0].url}
+                      alt={`Ảnh phòng ${room.code}`}
+                      fill
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      className="object-cover"
+                    />
+                    {room.photos.length > 1 && (
+                      <Badge
+                        variant="secondary"
+                        className="absolute bottom-2 right-2 bg-background/85 backdrop-blur"
+                      >
+                        {room.photos.length} ảnh
+                      </Badge>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex aspect-4/3 items-center justify-center bg-secondary text-muted-foreground">
+                    <ImageOffIcon className="size-6" />
+                  </div>
+                )}
+
                 <CardContent className="flex h-full flex-col gap-3 p-5">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-lg font-semibold">{room.code}</span>

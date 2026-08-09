@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { NoRoomNotice } from "@/components/common/no-room-notice";
+import { PhotoGallery } from "@/features/rooms/components/photo-gallery";
 import { getMyTenancy } from "@/features/tenants/queries";
 import { requireUser } from "@/lib/auth/dal";
 import { db } from "@/lib/db";
@@ -17,10 +18,15 @@ export default async function MyRoomPage() {
 
   if (!tenancy) return <NoRoomNotice />;
 
-  const roommates = await db.listMyRoommates(user.id);
+  const [roommates, photos] = await Promise.all([
+    db.listMyRoommates(user.id),
+    db.listRoomPhotos(tenancy.roomId),
+  ]);
 
   return (
     <div className="space-y-4">
+      <PhotoGallery photos={photos} roomCode={tenancy.room.code} />
+
       <Card>
         <CardHeader className="flex-row items-center justify-between">
           <CardTitle>Phòng {tenancy.room.code}</CardTitle>

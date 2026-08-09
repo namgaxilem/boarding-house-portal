@@ -12,12 +12,20 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { PageHeader } from "@/components/common/page-header";
 import { RoomStatusBadge } from "@/components/common/status-badge";
 import { ConfirmForm } from "@/components/common/confirm-form";
 import { RoomEventForm } from "@/features/rooms/components/room-event-form";
 import { EventTimeline, TenancyHistory } from "@/features/rooms/components/room-timeline";
+import { PhotoGrid } from "@/features/rooms/components/photo-grid";
+import { PhotoUploader } from "@/features/rooms/components/photo-uploader";
 import { deleteRoom } from "@/features/rooms/actions";
 import { db } from "@/lib/db";
 import { formatDate, formatDuration, formatVND, toDateInputValue } from "@/lib/format";
@@ -37,9 +45,10 @@ export default async function RoomDetailPage(props: PageProps<"/admin/rooms/[roo
   const room = await db.getRoom(roomId);
   if (!room) notFound();
 
-  const [tenancies, events] = await Promise.all([
+  const [tenancies, events, photos] = await Promise.all([
     db.listTenanciesByRoom(room.id),
     db.listRoomEvents(room.id),
+    db.listRoomPhotos(room.id),
   ]);
 
   const isFull = room.occupants.length >= room.maxOccupants;
@@ -201,8 +210,22 @@ export default async function RoomDetailPage(props: PageProps<"/admin/rooms/[roo
           </Card>
         </div>
 
-        {/* Right column: history */}
+        {/* Right column: photos + history */}
         <div className="space-y-6 lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Ảnh phòng</CardTitle>
+              <CardDescription>
+                Ảnh đầu tiên là ảnh bìa, hiện ở trang giới thiệu. Ai cũng xem được
+                những ảnh này.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5 pt-4">
+              <PhotoUploader roomId={room.id} />
+              <PhotoGrid photos={photos} roomCode={room.code} roomId={room.id} />
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Lịch sử thuê</CardTitle>
