@@ -1,7 +1,9 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/common/page-header";
 import { CheckOutForm } from "@/features/tenancies/components/check-out-form";
 import { db } from "@/lib/db";
@@ -9,10 +11,34 @@ import { toDateInputValue } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Trả phòng" };
 
-export default async function CheckOutPage(
+// Tên người thuê và mã phòng nằm cả trong mô tả lẫn breadcrumb, nên cả trang phụ
+// thuộc dữ liệu: bọc <Suspense> để bấm "Trả phòng" là đổi khung ngay, form và
+// ngày hôm nay (chỉ biết lúc có request) stream vào sau.
+export const instant = true;
+
+export default function CheckOutPage(
   props: PageProps<"/admin/tenancies/[tenancyId]/checkout">,
 ) {
-  const { tenancyId } = await props.params;
+  return (
+    <Suspense fallback={<CheckOutSkeleton />}>
+      <CheckOut params={props.params} />
+    </Suspense>
+  );
+}
+
+function CheckOutSkeleton() {
+  return (
+    <div className="space-y-6" aria-hidden>
+      <Skeleton className="h-16 w-full max-w-md rounded-md" />
+      <Skeleton className="h-80 w-full rounded-xl" />
+    </div>
+  );
+}
+
+async function CheckOut({
+  params,
+}: Pick<PageProps<"/admin/tenancies/[tenancyId]/checkout">, "params">) {
+  const { tenancyId } = await params;
   const tenancy = await db.getTenancy(tenancyId);
   if (!tenancy) notFound();
 

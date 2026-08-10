@@ -14,8 +14,6 @@ import { getCurrentUser } from "@/lib/auth/dal";
 import { env } from "@/lib/env";
 import { houseConfig } from "@/config/site";
 
-export const dynamic = "force-dynamic";
-
 /**
  * Bắt đầu luồng Zalo.
  *

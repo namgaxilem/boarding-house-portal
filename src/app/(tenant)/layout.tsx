@@ -4,7 +4,9 @@ import { UserMenu } from "@/components/layout/user-menu";
 import { ThemeToggle } from "@/components/common/theme";
 import { houseConfig } from "@/config/site";
 
-export const dynamic = "force-dynamic";
+// Guard bảo mật chạy đồng bộ trong layout (xem chú thích ở (admin)/layout.tsx):
+// entry vào /me được phép block, điều hướng giữa các trang /me vẫn phải instant.
+export const instant = false;
 
 export default async function TenantLayout({
   children,

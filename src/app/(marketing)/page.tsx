@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -11,24 +12,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { db } from "@/lib/db";
+import { listVacantRooms } from "@/lib/db/public-rooms";
 import { formatVND } from "@/lib/format";
 import { houseConfig, fullAddress, telHref } from "@/config/site";
 
 // Vacancy comes from the database and changes whenever someone checks in or
-// out, so this page must not be frozen into the build output.
-export const dynamic = "force-dynamic";
-
-export default async function LandingPage() {
-  const vacantRooms = houseConfig.features.publicRoomList
-    ? await db.listVacantRooms()
-    : [];
-
-  const cheapest =
-    vacantRooms.length > 0
-      ? Math.min(...vacantRooms.map((room) => room.basePrice))
-      : null;
-
+// out, so it stays uncached. Under Cache Components everything outside the two
+// <Suspense> boundaries below is prerendered into the static shell, which is what
+// makes navigation into this page instant; the vacancy bits stream in after.
+export default function LandingPage() {
   return (
     <>
       {/* Hero */}
@@ -64,13 +56,9 @@ export default async function LandingPage() {
               </Button>
             </div>
 
-            {vacantRooms.length > 0 && (
-              <p className="text-sm text-muted-foreground">
-                Hiện còn{" "}
-                <strong className="text-foreground">{vacantRooms.length} phòng trống</strong>
-                {cheapest !== null && <> · từ {formatVND(cheapest)}/tháng</>}
-              </p>
-            )}
+            <Suspense fallback={<p className="text-sm text-muted-foreground">Đang xem còn phòng…</p>}>
+              <VacancySummary />
+            </Suspense>
           </div>
         </div>
       </section>
@@ -98,67 +86,9 @@ export default async function LandingPage() {
       </section>
 
       {/* Vacant rooms preview */}
-      {vacantRooms.length > 0 && (
-        <section className="border-t border-border bg-secondary/30">
-          <div className="mx-auto max-w-5xl px-4 py-14">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
-                Phòng đang trống
-              </h2>
-              <Button variant="ghost" asChild>
-                <Link href="/rooms">
-                  Xem tất cả
-                  <ArrowRightIcon />
-                </Link>
-              </Button>
-            </div>
-
-            <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {vacantRooms.slice(0, 3).map((room) => (
-                <li key={room.id}>
-                  <Card className="h-full overflow-hidden">
-                    {room.photos.length > 0 && (
-                      <div className="relative aspect-4/3 bg-secondary">
-                        <Image
-                          src={room.photos[0].url}
-                          alt={`Ảnh phòng ${room.code}`}
-                          fill
-                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                          className="object-cover"
-                        />
-                      </div>
-                    )}
-                    <CardContent className="space-y-3 p-5">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="flex items-center gap-2 font-semibold">
-                          <DoorOpenIcon className="size-4 text-muted-foreground" />
-                          {room.code}
-                        </span>
-                        <Badge variant="success">Còn trống</Badge>
-                      </div>
-                      <p className="text-lg font-semibold text-primary tabular-nums">
-                        {formatVND(room.basePrice)}
-                        <span className="text-sm font-normal text-muted-foreground">
-                          /tháng
-                        </span>
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Tầng {room.floor} · {room.areaM2}m² · tối đa {room.maxOccupants}{" "}
-                        người
-                      </p>
-                      {room.description && (
-                        <p className="line-clamp-2 text-sm text-muted-foreground">
-                          {room.description}
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-      )}
+      <Suspense fallback={null}>
+        <VacantRoomsPreview />
+      </Suspense>
 
       {/* Contact strip */}
       <section className="border-t border-border">
@@ -176,5 +106,87 @@ export default async function LandingPage() {
         </div>
       </section>
     </>
+  );
+}
+
+async function VacancySummary() {
+  const vacantRooms = await listVacantRooms();
+  if (vacantRooms.length === 0) return null;
+
+  const cheapest = Math.min(...vacantRooms.map((room) => room.basePrice));
+
+  return (
+    <p className="text-sm text-muted-foreground">
+      Hiện còn{" "}
+      <strong className="text-foreground">{vacantRooms.length} phòng trống</strong> · từ{" "}
+      {formatVND(cheapest)}/tháng
+    </p>
+  );
+}
+
+async function VacantRoomsPreview() {
+  const vacantRooms = await listVacantRooms();
+  if (vacantRooms.length === 0) return null;
+
+  return (
+    <section className="border-t border-border bg-secondary/30">
+      <div className="mx-auto max-w-5xl px-4 py-14">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
+            Phòng đang trống
+          </h2>
+          <Button variant="ghost" asChild>
+            <Link href="/rooms">
+              Xem tất cả
+              <ArrowRightIcon />
+            </Link>
+          </Button>
+        </div>
+
+        <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {vacantRooms.slice(0, 3).map((room) => (
+            <li key={room.id}>
+              <Card className="h-full overflow-hidden">
+                {room.photos.length > 0 && (
+                  <div className="relative aspect-4/3 bg-secondary">
+                    <Image
+                      src={room.photos[0].url}
+                      alt={`Ảnh phòng ${room.code}`}
+                      fill
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      className="object-cover"
+                    />
+                  </div>
+                )}
+                <CardContent className="space-y-3 p-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 font-semibold">
+                      <DoorOpenIcon className="size-4 text-muted-foreground" />
+                      {room.code}
+                    </span>
+                    <Badge variant="success">Còn trống</Badge>
+                  </div>
+                  <p className="text-lg font-semibold text-primary tabular-nums">
+                    {formatVND(room.basePrice)}
+                    <span className="text-sm font-normal text-muted-foreground">
+                      /tháng
+                    </span>
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Tầng {room.floor} · {room.areaM2}m² · tối đa {room.maxOccupants}{" "}
+                    người
+                  </p>
+                  {room.description && (
+                    <p className="line-clamp-2 text-sm text-muted-foreground">
+                      {room.description}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
   );
 }

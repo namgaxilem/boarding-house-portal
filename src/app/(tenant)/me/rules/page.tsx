@@ -7,6 +7,9 @@ import { houseConfig, telHref } from "@/config/site";
 
 export const metadata: Metadata = { title: "Nội quy" };
 
+// Nội quy nằm trong config, không đọc DB — trang này tĩnh hoàn toàn.
+export const instant = true;
+
 export default function MyRulesPage() {
   return (
     <div className="space-y-4">

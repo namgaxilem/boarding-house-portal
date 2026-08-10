@@ -13,8 +13,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { houseConfig } from "@/config/site";
 
-export const dynamic = "force-dynamic";
-
 function fail(request: NextRequest, message: string) {
   const response = NextResponse.redirect(
     new URL(`/login?error=${encodeURIComponent(message)}`, request.url),

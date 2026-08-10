@@ -1,8 +1,10 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { NoRoomNotice } from "@/components/common/no-room-notice";
 import { PhotoGallery } from "@/features/rooms/components/photo-gallery";
 import { getMyTenancy } from "@/features/tenants/queries";
@@ -12,7 +14,28 @@ import { formatDate, formatDuration, formatVND, initials } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Phòng của tôi" };
 
-export default async function MyRoomPage() {
+export const instant = true;
+
+export default function MyRoomPage() {
+  return (
+    <Suspense fallback={<RoomSkeleton />}>
+      <RoomDetail />
+    </Suspense>
+  );
+}
+
+function RoomSkeleton() {
+  return (
+    <div className="space-y-4" aria-hidden>
+      <Skeleton className="aspect-4/3 w-full rounded-xl" />
+      {Array.from({ length: 3 }).map((_, index) => (
+        <Skeleton key={index} className="h-40 w-full rounded-xl" />
+      ))}
+    </div>
+  );
+}
+
+async function RoomDetail() {
   const user = await requireUser();
   const tenancy = await getMyTenancy();
 

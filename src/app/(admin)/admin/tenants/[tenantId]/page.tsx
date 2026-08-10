@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -16,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/common/page-header";
 import { TenancyStatusBadge } from "@/components/common/status-badge";
 import { ConfirmForm } from "@/components/common/confirm-form";
@@ -38,9 +40,31 @@ export async function generateMetadata(
   return { title: tenant?.fullName ?? "Người thuê" };
 }
 
-export default async function TenantDetailPage(
-  props: PageProps<"/admin/tenants/[tenantId]">,
-) {
+// Tên người thuê xuất hiện khắp trang (tiêu đề, breadcrumb, các nút xác nhận) nên
+// cả trang phụ thuộc dữ liệu; <Suspense> để khung trang hiện ngay khi điều hướng.
+export const instant = true;
+
+export default function TenantDetailPage(props: PageProps<"/admin/tenants/[tenantId]">) {
+  return (
+    <Suspense fallback={<DetailSkeleton />}>
+      <TenantDetail {...props} />
+    </Suspense>
+  );
+}
+
+function DetailSkeleton() {
+  return (
+    <div className="space-y-6" aria-hidden>
+      <Skeleton className="h-20 w-full max-w-lg rounded-md" />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Skeleton className="h-64 w-full rounded-xl" />
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </div>
+    </div>
+  );
+}
+
+async function TenantDetail(props: PageProps<"/admin/tenants/[tenantId]">) {
   const { tenantId } = await props.params;
   const searchParams = await props.searchParams;
 

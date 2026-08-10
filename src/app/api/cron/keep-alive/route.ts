@@ -2,8 +2,6 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { db } from "@/lib/db";
 
-export const dynamic = "force-dynamic";
-
 /**
  * Keeps a Supabase free-tier project from auto-pausing after 7 idle days.
  *

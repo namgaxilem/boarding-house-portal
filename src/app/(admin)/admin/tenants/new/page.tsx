@@ -5,6 +5,9 @@ import { TenantForm } from "@/features/tenants/components/tenant-form";
 
 export const metadata: Metadata = { title: "Thêm người thuê" };
 
+// Form trống, không đọc DB — trang này tĩnh.
+export const instant = true;
+
 export default function NewTenantPage() {
   return (
     <div className="space-y-6">

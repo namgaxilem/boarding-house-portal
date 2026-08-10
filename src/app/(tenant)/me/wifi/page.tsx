@@ -1,8 +1,10 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { WifiIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { CopyButton, SecretField } from "@/components/common/copy-button";
 import { EmptyState } from "@/components/common/empty-state";
 import { NoRoomNotice } from "@/components/common/no-room-notice";
@@ -11,7 +13,28 @@ import { WIFI_SCOPE_LABEL } from "@/lib/constants";
 
 export const metadata: Metadata = { title: "Wifi" };
 
-export default async function MyWifiPage() {
+export const instant = true;
+
+export default function MyWifiPage() {
+  return (
+    <Suspense fallback={<WifiSkeleton />}>
+      <WifiList />
+    </Suspense>
+  );
+}
+
+function WifiSkeleton() {
+  return (
+    <div className="space-y-4" aria-hidden>
+      <Skeleton className="h-10 w-full rounded-md" />
+      {Array.from({ length: 2 }).map((_, index) => (
+        <Skeleton key={index} className="h-[148px] w-full rounded-xl" />
+      ))}
+    </div>
+  );
+}
+
+async function WifiList() {
   const tenancy = await getMyTenancy();
   if (!tenancy) return <NoRoomNotice />;
 

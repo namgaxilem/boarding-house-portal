@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -19,6 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/common/page-header";
 import { RoomStatusBadge } from "@/components/common/status-badge";
 import { ConfirmForm } from "@/components/common/confirm-form";
@@ -38,7 +40,32 @@ export async function generateMetadata(
   return { title: room ? `Phòng ${room.code}` : "Phòng" };
 }
 
-export default async function RoomDetailPage(props: PageProps<"/admin/rooms/[roomId]">) {
+// Mã phòng có mặt ở tiêu đề, breadcrumb và mọi nút thao tác, nên không tách được
+// phần tĩnh: bọc cả trang trong <Suspense> để bấm từ danh sách phòng sang là đổi
+// khung ngay thay vì đứng chờ ở trang cũ.
+export const instant = true;
+
+export default function RoomDetailPage(props: PageProps<"/admin/rooms/[roomId]">) {
+  return (
+    <Suspense fallback={<DetailSkeleton />}>
+      <RoomDetail {...props} />
+    </Suspense>
+  );
+}
+
+function DetailSkeleton() {
+  return (
+    <div className="space-y-6" aria-hidden>
+      <Skeleton className="h-20 w-full max-w-lg rounded-md" />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Skeleton className="h-72 w-full rounded-xl" />
+        <Skeleton className="h-72 w-full rounded-xl" />
+      </div>
+    </div>
+  );
+}
+
+async function RoomDetail(props: PageProps<"/admin/rooms/[roomId]">) {
   const { roomId } = await props.params;
   const searchParams = await props.searchParams;
 

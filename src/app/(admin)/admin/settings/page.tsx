@@ -9,6 +9,9 @@ import { formatPhone, formatVND } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Cài đặt nhà trọ" };
 
+// Toàn bộ nội dung lấy từ config, không chạm DB — tab này tĩnh hoàn toàn.
+export const instant = true;
+
 /**
  * Read-only on purpose.
  *

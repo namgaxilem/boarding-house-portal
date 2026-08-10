@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import {
   ClockIcon,
@@ -17,12 +18,12 @@ import { formatPhone } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Liên hệ chủ trọ" };
 
-export default async function MyContactPage() {
-  const { contact, bank, address } = houseConfig;
-  const tenancy = await getMyTenancy();
+// Toàn bộ trang lấy từ config nên prerender được; chỉ nội dung chuyển khoản cần
+// biết mã phòng của người đang đăng nhập, phần đó stream sau.
+export const instant = true;
 
-  // Pre-filling the transfer note saves the tenant retyping it every month.
-  const transferNote = tenancy ? `${tenancy.room.code} tien phong` : null;
+export default function MyContactPage() {
+  const { contact, bank, address } = houseConfig;
 
   return (
     <div className="space-y-4">
@@ -154,18 +155,38 @@ export default async function MyContactPage() {
 
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">Nội dung chuyển khoản</p>
-              <div className="flex items-center gap-1">
-                <code className="min-w-0 flex-1 truncate rounded-md bg-secondary px-2.5 py-1.5 font-mono text-sm">
-                  {transferNote ?? bank.transferNote}
-                </code>
-                {transferNote && (
-                  <CopyButton value={transferNote} label="Sao chép nội dung" />
-                )}
-              </div>
+              <Suspense
+                fallback={<TransferNote note={null} fallback={bank.transferNote} />}
+              >
+                <MyTransferNote fallback={bank.transferNote} />
+              </Suspense>
             </div>
           </CardContent>
         </Card>
       )}
     </div>
+  );
+}
+
+function TransferNote({ note, fallback }: { note: string | null; fallback: string }) {
+  return (
+    <div className="flex items-center gap-1">
+      <code className="min-w-0 flex-1 truncate rounded-md bg-secondary px-2.5 py-1.5 font-mono text-sm">
+        {note ?? fallback}
+      </code>
+      {note && <CopyButton value={note} label="Sao chép nội dung" />}
+    </div>
+  );
+}
+
+async function MyTransferNote({ fallback }: { fallback: string }) {
+  const tenancy = await getMyTenancy();
+
+  // Pre-filling the transfer note saves the tenant retyping it every month.
+  return (
+    <TransferNote
+      note={tenancy ? `${tenancy.room.code} tien phong` : null}
+      fallback={fallback}
+    />
   );
 }

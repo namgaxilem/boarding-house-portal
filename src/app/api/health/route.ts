@@ -3,8 +3,6 @@ import { NextResponse } from "next/server";
 import { isSupabaseConfigured } from "@/lib/env";
 import { db } from "@/lib/db";
 
-export const dynamic = "force-dynamic";
-
 export async function GET() {
   if (!isSupabaseConfigured) {
     return NextResponse.json(

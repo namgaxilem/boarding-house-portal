@@ -3,8 +3,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth/dal";
 
-export const dynamic = "force-dynamic";
-
 /**
  * Đổi mã một lần từ Supabase (Google/Facebook, magic link, đặt lại mật khẩu)
  * lấy cookie phiên đăng nhập.

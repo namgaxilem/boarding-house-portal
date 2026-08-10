@@ -10,7 +10,9 @@ export interface Crumb {
 
 interface PageHeaderProps {
   title: string;
-  description?: string;
+  /** ReactNode chứ không phải string: chỗ này hay là <Suspense> bọc một con số
+   *  lấy từ DB, để tiêu đề trang vẫn nằm trong shell tĩnh. */
+  description?: React.ReactNode;
   breadcrumbs?: Crumb[];
   actions?: React.ReactNode;
   className?: string;

@@ -1,9 +1,11 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronRightIcon, DoorOpenIcon, WifiIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { NoRoomNotice } from "@/components/common/no-room-notice";
 import { TENANT_SECONDARY } from "@/components/layout/nav-items";
 import { getMyTenancy, getMyWifi } from "@/features/tenants/queries";
@@ -12,7 +14,31 @@ import { houseConfig } from "@/config/site";
 
 export const metadata: Metadata = { title: "Trang chủ" };
 
-export default async function TenantHomePage() {
+// Cả trang phụ thuộc vào hợp đồng thuê (không có phòng thì thay bằng NoRoomNotice),
+// nên không tách được phần tĩnh nào ra ngoài. Bọc trong <Suspense>: chuyển tab là
+// khung xám hiện ngay, dữ liệu stream vào sau.
+export const instant = true;
+
+export default function TenantHomePage() {
+  return (
+    <Suspense fallback={<HomeSkeleton />}>
+      <TenantHome />
+    </Suspense>
+  );
+}
+
+function HomeSkeleton() {
+  return (
+    <div className="space-y-4" aria-hidden>
+      <Skeleton className="h-[196px] w-full rounded-xl" />
+      {Array.from({ length: 4 }).map((_, index) => (
+        <Skeleton key={index} className="h-[72px] w-full rounded-xl" />
+      ))}
+    </div>
+  );
+}
+
+async function TenantHome() {
   const tenancy = await getMyTenancy();
 
   if (!tenancy) {

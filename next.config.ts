@@ -30,6 +30,11 @@ function isLocalHostname(hostname: string) {
 }
 
 const nextConfig: NextConfig = {
+  // Cache Components (Next 16): dữ liệu là dynamic mặc định, phần nào muốn cache
+  // thì đánh dấu `use cache`. Bật cờ này cũng bật Partial Prerendering + kiểm tra
+  // Instant Navigation (`instant`) và React <Activity> giữ state khi điều hướng.
+  cacheComponents: true,
+
   images: {
     remotePatterns: supabase
       ? [

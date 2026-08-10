@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PlusIcon, UsersIcon } from "lucide-react";
@@ -15,25 +16,26 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/common/page-header";
 import { EmptyState } from "@/components/common/empty-state";
-import { db } from "@/lib/db";
+import { listTenants } from "@/features/tenants/queries";
 import { formatDate, formatPhone, formatVND, initials } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Người thuê" };
 
-export default async function AdminTenantsPage(props: PageProps<"/admin/tenants">) {
-  const searchParams = await props.searchParams;
-  const tenants = await db.listTenants();
+export const instant = true;
 
-  const active = tenants.filter((tenant) => tenant.currentTenancy !== null);
-  const inactive = tenants.filter((tenant) => tenant.currentTenancy === null);
-
+export default function AdminTenantsPage(props: PageProps<"/admin/tenants">) {
   return (
     <div className="space-y-6">
       <PageHeader
         title="Người thuê"
-        description={`${active.length} người đang ở · ${inactive.length} người đã rời hoặc chưa xếp phòng.`}
+        description={
+          <Suspense fallback="Danh sách người thuê của nhà trọ.">
+            <TenantCounts />
+          </Suspense>
+        }
         breadcrumbs={[{ label: "Tổng quan", href: "/admin" }, { label: "Người thuê" }]}
         actions={
           <Button asChild>
@@ -45,12 +47,48 @@ export default async function AdminTenantsPage(props: PageProps<"/admin/tenants"
         }
       />
 
-      {searchParams.deleted === "1" && (
-        <Alert variant="success" role="status">
-          <AlertDescription>Đã xoá người thuê.</AlertDescription>
-        </Alert>
-      )}
+      <Suspense fallback={null}>
+        <DeletedNotice searchParams={props.searchParams} />
+      </Suspense>
 
+      <Suspense fallback={<Skeleton className="h-96 w-full rounded-xl" />}>
+        <TenantTable />
+      </Suspense>
+    </div>
+  );
+}
+
+async function TenantCounts() {
+  const tenants = await listTenants();
+
+  const active = tenants.filter((tenant) => tenant.currentTenancy !== null);
+  const inactive = tenants.filter((tenant) => tenant.currentTenancy === null);
+
+  return (
+    <>
+      {active.length} người đang ở · {inactive.length} người đã rời hoặc chưa xếp phòng.
+    </>
+  );
+}
+
+async function DeletedNotice({
+  searchParams,
+}: Pick<PageProps<"/admin/tenants">, "searchParams">) {
+  const { deleted } = await searchParams;
+  if (deleted !== "1") return null;
+
+  return (
+    <Alert variant="success" role="status">
+      <AlertDescription>Đã xoá người thuê.</AlertDescription>
+    </Alert>
+  );
+}
+
+async function TenantTable() {
+  const tenants = await listTenants();
+
+  return (
+    <>
       {tenants.length === 0 ? (
         <EmptyState
           icon={<UsersIcon />}
@@ -138,6 +176,6 @@ export default async function AdminTenantsPage(props: PageProps<"/admin/tenants"
           </Table>
         </Card>
       )}
-    </div>
+    </>
   );
 }

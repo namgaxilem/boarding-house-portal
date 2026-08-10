@@ -5,6 +5,9 @@ import { RoomForm } from "@/features/rooms/components/room-form";
 
 export const metadata: Metadata = { title: "Thêm phòng" };
 
+// Form trống, mặc định lấy từ config — không đọc DB nên trang này tĩnh.
+export const instant = true;
+
 export default function NewRoomPage() {
   return (
     <div className="space-y-6">

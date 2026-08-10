@@ -3,14 +3,16 @@ import { AdminMobileNav, AdminSidebar } from "@/components/layout/admin-nav";
 import { UserMenu } from "@/components/layout/user-menu";
 import { ThemeToggle } from "@/components/common/theme";
 
-// Everything under /admin is per-user and per-request; none of it may be baked
-// into the build output.
-//
 // Note: no `loading.tsx` anywhere in this tree. On Next 16.2 + Turbopack a
 // route-level loading boundary over a dynamic segment leaves the fallback stuck
 // on screen — the content never swaps in. Pages that need streaming use an
 // explicit <Suspense> instead, which works correctly (see /admin).
-export const dynamic = "force-dynamic";
+
+// Vào /admin từ ngoài luôn phải chờ `requireAdmin()` — đó là guard bảo mật, không
+// được stream sau shell, nếu không nội dung admin đã bay ra trước khi redirect.
+// Nên layout này được phép block; các page bên trong vẫn được kiểm tra instant khi
+// điều hướng qua lại trong /admin.
+export const instant = false;
 
 export default async function AdminLayout({
   children,

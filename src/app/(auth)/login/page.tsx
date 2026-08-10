@@ -11,7 +11,9 @@ import { HOME_PATH } from "@/lib/constants";
 
 export const metadata: Metadata = { title: "Đăng nhập" };
 
-export const dynamic = "force-dynamic";
+// Trang này phải chặn: nếu người dùng đã đăng nhập thì redirect về home theo role,
+// stream cái đó ra sau shell nghĩa là form đăng nhập loé lên rồi mới nhảy trang.
+export const instant = false;
 
 export default async function LoginPage(props: PageProps<"/login">) {
   const { next, expired, error } = await props.searchParams;
