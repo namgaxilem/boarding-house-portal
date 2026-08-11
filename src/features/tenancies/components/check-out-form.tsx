@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { Link } from "@/components/common/link";
 import { useActionState, useState } from "react";
 import { LogOutIcon } from "lucide-react";
 

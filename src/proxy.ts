@@ -74,6 +74,11 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    // `js|wasm|webmanifest` là phần thêm cho PWA: `/sw.js`, `/zxing_reader.wasm`
+    // và `/manifest.webmanifest` đều được trình duyệt tải TRƯỚC hoặc NGOÀI phiên
+    // đăng nhập. Để chúng đi qua proxy thì khách chưa đăng nhập sẽ nhận về HTML
+    // của trang /login — service worker không đăng ký được, nút "Cài đặt" không
+    // bao giờ xuất hiện, và lỗi thì im lặng.
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|js|wasm|webmanifest)$).*)",
   ],
 };

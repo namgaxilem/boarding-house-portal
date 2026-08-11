@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { Link } from "@/components/common/link";
 import { useActionState } from "react";
 import { LogInIcon } from "lucide-react";
 

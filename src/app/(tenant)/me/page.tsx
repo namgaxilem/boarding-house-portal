@@ -1,11 +1,12 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/common/link";
 import { ChevronRightIcon, DoorOpenIcon, WifiIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InstallPrompt } from "@/components/common/install-prompt";
 import { NoRoomNotice } from "@/components/common/no-room-notice";
 import { TENANT_SECONDARY } from "@/components/layout/nav-items";
 import { getMyTenancy, getMyWifi } from "@/features/tenants/queries";
@@ -21,9 +22,15 @@ export const instant = true;
 
 export default function TenantHomePage() {
   return (
-    <Suspense fallback={<HomeSkeleton />}>
-      <TenantHome />
-    </Suspense>
+    <div className="space-y-4">
+      {/* Ngoài <Suspense>: lời mời cài app không đụng tới database nên nó thuộc
+          phần tĩnh, hiện ngay chứ không đợi hợp đồng thuê tải xong. */}
+      <InstallPrompt />
+
+      <Suspense fallback={<HomeSkeleton />}>
+        <TenantHome />
+      </Suspense>
+    </div>
   );
 }
 

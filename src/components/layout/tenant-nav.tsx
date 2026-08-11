@@ -1,7 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
+
+import { Link, LinkPendingDot } from "@/components/common/link";
 
 import { TENANT_NAV, isActive } from "@/components/layout/nav-items";
 import { cn } from "@/lib/utils";
@@ -34,7 +35,12 @@ export function TenantBottomNav() {
                 )}
               >
                 <item.icon className={cn("size-5", active && "stroke-[2.25]")} />
-                <span className="truncate">{item.label}</span>
+                <span className="flex items-center gap-1">
+                  <span className="truncate">{item.label}</span>
+                  {/* Ngón tay che mất tab vừa chạm; chấm này nằm ngay cạnh nhãn
+                      nên vẫn thấy được phản hồi mà không cần nhìn lên đầu màn hình. */}
+                  <LinkPendingDot className="size-1 shrink-0" />
+                </span>
               </Link>
             </li>
           );

@@ -1,5 +1,8 @@
 import type {
   AdminStats,
+  IdDocument,
+  IdDocumentPhotos,
+  IdDocumentWithTenant,
   Profile,
   RoomPhoto,
   RoomWithPhotos,
@@ -42,6 +45,24 @@ export interface TenantInput {
   dateOfBirth: string | null;
   hometown: string | null;
   note: string | null;
+}
+
+/**
+ * Dữ liệu người thuê gửi kèm ảnh CCCD.
+ *
+ * `idNumber` là bắt buộc — không có số thì chủ trọ chẳng duyệt được gì. Các
+ * trường còn lại có thể thiếu: thẻ đời cũ không có đủ, và người dùng được phép
+ * nhập tay khi mã QR mờ không quét nổi.
+ */
+export interface IdDocumentInput {
+  idNumber: string;
+  oldIdNumber: string | null;
+  fullName: string | null;
+  dateOfBirth: string | null;
+  gender: string | null;
+  residence: string | null;
+  issuedOn: string | null;
+  source: "qr" | "manual";
 }
 
 export interface TenancyInput {
@@ -131,6 +152,35 @@ export interface Repository {
     id: string,
     input: Pick<TenantInput, "fullName" | "phone" | "dateOfBirth" | "hometown">,
   ): Promise<Profile>;
+
+  /* giấy tờ tuỳ thân (CCCD) */
+  /** Hồ sơ gần nhất của một người, kể cả đã duyệt hay bị từ chối. */
+  getLatestIdDocument(profileId: string): Promise<IdDocument | null>;
+  listIdDocuments(profileId: string): Promise<IdDocument[]>;
+  /** Hàng chờ duyệt của chủ trọ. */
+  listPendingIdDocuments(): Promise<IdDocumentWithTenant[]>;
+  /** Tải ảnh lên bucket riêng tư rồi ghi một dòng ở trạng thái chờ duyệt. */
+  createIdDocument(
+    profileId: string,
+    input: IdDocumentInput,
+    front: File | null,
+    back: File | null,
+  ): Promise<IdDocument>;
+  /** Xoá cả dòng lẫn ảnh. Người thuê chỉ xoá được hồ sơ chưa duyệt của mình. */
+  deleteIdDocument(documentId: string): Promise<void>;
+  /** Duyệt và chép số CCCD sang `profiles`, nguyên tử. Chỉ admin. */
+  approveIdDocument(documentId: string): Promise<void>;
+  rejectIdDocument(documentId: string, note: string): Promise<void>;
+  /**
+   * Ký URL tạm cho ảnh CCCD và ghi một dòng nhật ký truy cập.
+   *
+   * Gọi càng muộn càng tốt — URL ký ra hết hạn sau ít phút, ký sớm rồi cache lại
+   * là vừa hỏng ảnh vừa mất ý nghĩa của việc để bucket riêng tư.
+   */
+  signIdDocumentPhotos(
+    document: IdDocument,
+    viewerId: string,
+  ): Promise<IdDocumentPhotos>;
 
   /* tenancies */
   listTenanciesByRoom(roomId: string): Promise<TenancyDetail[]>;

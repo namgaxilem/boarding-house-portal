@@ -7,6 +7,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
 import type {
   AdminStats,
+  IdDocStatus,
+  IdDocument,
+  IdDocumentPhotos,
+  IdDocumentWithTenant,
   Profile,
   Room,
   RoomEvent,
@@ -22,6 +26,7 @@ import type {
 
 import type {
   EndTenancyInput,
+  IdDocumentInput,
   RecentEvent,
   Repository,
   RoomEventInput,
@@ -98,6 +103,26 @@ interface RoomPhotoRow {
   caption: string | null;
   sort_order: number;
   created_at: string;
+}
+
+interface IdDocumentRow {
+  id: string;
+  profile_id: string;
+  status: IdDocStatus;
+  id_number: string | null;
+  old_id_number: string | null;
+  full_name: string | null;
+  date_of_birth: string | null;
+  gender: string | null;
+  residence: string | null;
+  issued_on: string | null;
+  front_path: string | null;
+  back_path: string | null;
+  source: "qr" | "manual";
+  review_note: string | null;
+  submitted_at: string;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
 }
 
 interface WifiRow {
@@ -205,6 +230,38 @@ function toRoomPhoto(row: RoomPhotoRow): RoomPhoto {
   };
 }
 
+/**
+ * Bucket RIÊNG TƯ. Khác `room-photos` ở đúng chỗ quan trọng nhất: không có hàm
+ * dựng URL công khai ở đây, và cũng không được thêm. Muốn xem ảnh phải ký
+ * (`signIdDocumentPhotos`).
+ */
+export const ID_PHOTO_BUCKET = "id-photos";
+
+/** URL ký sống 2 phút — đủ để trình duyệt tải ảnh, không đủ để chia sẻ lại. */
+const ID_PHOTO_URL_TTL_SECONDS = 120;
+
+function toIdDocument(row: IdDocumentRow): IdDocument {
+  return {
+    id: row.id,
+    profileId: row.profile_id,
+    status: row.status,
+    idNumber: row.id_number,
+    oldIdNumber: row.old_id_number,
+    fullName: row.full_name,
+    dateOfBirth: row.date_of_birth,
+    gender: row.gender,
+    residence: row.residence,
+    issuedOn: row.issued_on,
+    frontPath: row.front_path,
+    backPath: row.back_path,
+    source: row.source,
+    reviewNote: row.review_note,
+    submittedAt: row.submitted_at,
+    reviewedAt: row.reviewed_at,
+    reviewedBy: row.reviewed_by,
+  };
+}
+
 function toWifi(row: WifiRow): WifiNetwork {
   return {
     id: row.id,
@@ -256,6 +313,9 @@ function rethrow(error: PostgrestError | null, fallback: string): never {
     if (error.message.includes("email")) throw new Error("DUPLICATE_EMAIL");
   }
   if (error?.code === "23505") {
+    if (error.message.includes("one_pending_per_profile")) {
+      throw new Error("ID_DOCUMENT_PENDING_EXISTS");
+    }
     if (error.message.includes("id_number")) throw new Error("DUPLICATE_ID_NUMBER");
     if (error.message.includes("phone")) throw new Error("DUPLICATE_PHONE");
   }
@@ -599,6 +659,239 @@ export const supabaseAdapter: Repository = {
         .eq("id", id);
       if (error) rethrow(error, "Không đổi được thứ tự ảnh");
     }
+  },
+
+  /* ------------------------------------------------- giấy tờ tuỳ thân --- */
+
+  async getLatestIdDocument(profileId) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("id_documents")
+      .select("*")
+      .eq("profile_id", profileId)
+      .order("submitted_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) rethrow(error, "Không đọc được hồ sơ giấy tờ");
+    return data ? toIdDocument(data as IdDocumentRow) : null;
+  },
+
+  async listIdDocuments(profileId) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("id_documents")
+      .select("*")
+      .eq("profile_id", profileId)
+      .order("submitted_at", { ascending: false });
+    if (error) rethrow(error, "Không đọc được hồ sơ giấy tờ");
+    return (data as IdDocumentRow[]).map(toIdDocument);
+  },
+
+  async listPendingIdDocuments() {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("id_documents")
+      .select("*, profiles!id_documents_profile_id_fkey(id, full_name, email, id_number)")
+      .eq("status", "pending")
+      .order("submitted_at");
+    if (error) rethrow(error, "Không đọc được hàng chờ duyệt");
+
+    type Row = IdDocumentRow & {
+      profiles: Pick<ProfileRow, "id" | "full_name" | "email" | "id_number"> | null;
+    };
+
+    return (data as Row[])
+      // Hồ sơ mà join không ra người là dữ liệu mồ côi (tài khoản vừa bị xoá
+      // trong lúc đang chờ duyệt). Bỏ qua thay vì render một thẻ trống.
+      .filter((row) => row.profiles !== null)
+      .map<IdDocumentWithTenant>((row) => ({
+        ...toIdDocument(row),
+        tenant: {
+          id: row.profiles!.id,
+          fullName: row.profiles!.full_name,
+          email: row.profiles!.email,
+          idNumber: row.profiles!.id_number,
+        },
+      }));
+  },
+
+  async createIdDocument(profileId, input: IdDocumentInput, front, back) {
+    const supabase = await createClient();
+
+    // Đường dẫn PHẢI bắt đầu bằng profileId: policy `id_photos_insert` so thư
+    // mục cấp một với auth.uid(). Đổi quy ước đặt tên ở đây thì phải sửa cả
+    // migration 0006.
+    const uploaded: string[] = [];
+
+    async function upload(file: File | null, side: "front" | "back") {
+      if (!file) return null;
+
+      const extension =
+        { "image/webp": "webp", "image/png": "png", "image/jpeg": "jpg" }[file.type] ??
+        "jpg";
+      const storagePath = `${profileId}/${crypto.randomUUID()}-${side}.${extension}`;
+
+      const { error } = await supabase.storage
+        .from(ID_PHOTO_BUCKET)
+        .upload(storagePath, file, { contentType: file.type, upsert: false });
+
+      if (error) {
+        throw new Error(
+          /row-level security|Unauthorized/i.test(error.message)
+            ? "ID_PHOTO_UPLOAD_FORBIDDEN"
+            : `Không tải được ảnh lên: ${error.message}`,
+        );
+      }
+
+      uploaded.push(storagePath);
+      return storagePath;
+    }
+
+    /** Ảnh đã lên mà bước sau hỏng thì chúng thành rác vĩnh viễn trong bucket. */
+    async function cleanup() {
+      if (uploaded.length > 0) {
+        await supabase.storage.from(ID_PHOTO_BUCKET).remove(uploaded);
+      }
+    }
+
+    let frontPath: string | null = null;
+    let backPath: string | null = null;
+
+    try {
+      frontPath = await upload(front, "front");
+      backPath = await upload(back, "back");
+    } catch (error) {
+      await cleanup();
+      throw error;
+    }
+
+    const { data, error } = await supabase
+      .from("id_documents")
+      .insert({
+        profile_id: profileId,
+        status: "pending",
+        id_number: input.idNumber,
+        old_id_number: input.oldIdNumber,
+        full_name: input.fullName,
+        date_of_birth: input.dateOfBirth,
+        gender: input.gender,
+        residence: input.residence,
+        issued_on: input.issuedOn,
+        front_path: frontPath,
+        back_path: backPath,
+        source: input.source,
+      })
+      .select("*")
+      .single();
+
+    if (error) {
+      await cleanup();
+      rethrow(error, "Không lưu được hồ sơ giấy tờ");
+    }
+
+    return toIdDocument(data as IdDocumentRow);
+  },
+
+  async deleteIdDocument(documentId) {
+    const supabase = await createClient();
+
+    const { data: document, error: findError } = await supabase
+      .from("id_documents")
+      .select("front_path, back_path")
+      .eq("id", documentId)
+      .maybeSingle();
+    if (findError) rethrow(findError, "Không tìm được hồ sơ");
+    if (!document) return;
+
+    const { error } = await supabase.from("id_documents").delete().eq("id", documentId);
+    if (error) rethrow(error, "Không xoá được hồ sơ");
+
+    const paths = [document.front_path, document.back_path].filter(
+      (path): path is string => Boolean(path),
+    );
+    if (paths.length > 0) {
+      await supabase.storage.from(ID_PHOTO_BUCKET).remove(paths);
+    }
+  },
+
+  async approveIdDocument(documentId) {
+    const supabase = await createClient();
+
+    // Đi qua hàm SQL chứ không tự update hai bảng: chép số CCCD sang `profiles`
+    // và đổi trạng thái phải cùng thành công. Xem approve_id_document() ở 0006.
+    const { error } = await supabase.rpc("approve_id_document", {
+      p_document_id: documentId,
+    });
+
+    if (error) {
+      for (const code of [
+        "ID_DOCUMENT_NOT_FOUND",
+        "ID_DOCUMENT_ALREADY_REVIEWED",
+        "ID_DOCUMENT_NO_NUMBER",
+      ]) {
+        if (error.message.includes(code)) throw new Error(code);
+      }
+      // Người thuê khai trùng số CCCD với người khác — unique index trên
+      // `profiles` bắn 23505 từ bên trong hàm.
+      rethrow(error, "Không duyệt được hồ sơ giấy tờ");
+    }
+  },
+
+  async rejectIdDocument(documentId, note) {
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    const { error } = await supabase
+      .from("id_documents")
+      .update({
+        status: "rejected",
+        review_note: note,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: user?.id ?? null,
+      })
+      .eq("id", documentId)
+      // Chỉ từ chối hồ sơ còn đang chờ. Bấm hai lần, hoặc bấm sau khi tab khác
+      // vừa duyệt, thì câu lệnh này không khớp dòng nào thay vì lật ngược quyết định.
+      .eq("status", "pending");
+
+    if (error) rethrow(error, "Không từ chối được hồ sơ");
+  },
+
+  async signIdDocumentPhotos(document, viewerId): Promise<IdDocumentPhotos> {
+    const supabase = await createClient();
+
+    const paths = [document.frontPath, document.backPath].filter(
+      (path): path is string => Boolean(path),
+    );
+    if (paths.length === 0) return { frontUrl: null, backUrl: null };
+
+    const { data, error } = await supabase.storage
+      .from(ID_PHOTO_BUCKET)
+      .createSignedUrls(paths, ID_PHOTO_URL_TTL_SECONDS);
+
+    // `rethrow` chỉ hiểu lỗi của PostgREST; Storage trả về kiểu khác hẳn.
+    if (error) throw new Error(`Không mở được ảnh giấy tờ: ${error.message}`);
+
+    const byPath = new Map(
+      (data ?? []).map((entry) => [entry.path ?? "", entry.signedUrl ?? null]),
+    );
+
+    // Ghi nhật ký: ai mở ảnh giấy tờ của ai, lúc nào (Nghị định 13/2023).
+    // Ghi ở đây vì đây là chỗ duy nhất biết chắc một lượt xem đang xảy ra. Đổi
+    // lại, React render lại component có thể sinh thêm một dòng trùng —
+    // chấp nhận được với một sổ chỉ-ghi-thêm, sai lệch về phía "ghi thừa".
+    await supabase.from("id_document_access_log").insert({
+      document_id: document.id,
+      viewer_id: viewerId,
+    });
+
+    return {
+      frontUrl: document.frontPath ? (byPath.get(document.frontPath) ?? null) : null,
+      backUrl: document.backPath ? (byPath.get(document.backPath) ?? null) : null,
+    };
   },
 
   /* -------------------------------------------------------------- tenants */

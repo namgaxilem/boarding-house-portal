@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/common/link";
 import { PlusIcon, UsersIcon } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";

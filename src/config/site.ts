@@ -17,6 +17,12 @@ export const houseConfig = {
   /** Tên hiển thị trên mọi trang, tab trình duyệt, và trang giới thiệu. */
   name: "Nhà trọ Tân Phát",
 
+  /**
+   * Tên hiện DƯỚI ICON khi cài app lên màn hình chính điện thoại.
+   * Android cắt sau ~12 ký tự, iOS sau ~11 — dài hơn sẽ thành "Nhà trọ Tâ…".
+   */
+  shortName: "Tân Phát",
+
   /** Mô tả ngắn cho trang chủ và thẻ chia sẻ mạng xã hội. */
   tagline: "Phòng trọ sạch sẽ, an ninh, gần trung tâm",
   description:

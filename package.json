@@ -13,6 +13,8 @@
     "db:status": "supabase status",
     "db:reset": "supabase db reset",
     "create-admin": "node --env-file=.env.local scripts/create-admin.mjs",
+    "icons": "node scripts/generate-icons.mjs",
+    "postinstall": "node scripts/copy-wasm.mjs",
     "db:studio": "supabase status -o env | grep STUDIO"
   },
   "dependencies": {
@@ -41,7 +43,8 @@
     "tailwind-merge": "^3.6.0",
     "tailwindcss-animate": "^1.0.7",
     "zod": "^4.4.3",
-    "zustand": "^5.0.14"
+    "zustand": "^5.0.14",
+    "zxing-wasm": "^3.1.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -50,6 +53,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "^16.3.0",
+    "sharp": "^0.35.3",
     "supabase": "^2.111.0",
     "tailwindcss": "^4",
     "typescript": "^5"

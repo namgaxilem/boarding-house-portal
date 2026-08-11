@@ -162,7 +162,73 @@ Redirect URI khai ở Zalo Developers: `<NEXT_PUBLIC_SITE_URL>/auth/zalo/callbac
 
 Nếu app Zalo của bạn đã được duyệt quyền đọc số điện thoại thì bỏ qua được bước 1–2: hệ thống tự khớp theo số điện thoại chủ trọ đã nhập trong hồ sơ.
 
-## 5. Deploy
+## 5. Cài app lên điện thoại (PWA)
+
+App cài được lên màn hình chính, mở ra không có thanh địa chỉ, trông như app thật. Không qua CH Play hay App Store, không phải chờ duyệt.
+
+### Đổi icon
+
+Thay `assets/logo.svg` bằng logo của bạn rồi chạy:
+
+```bash
+npm run icons
+```
+
+Script sinh đủ 6 kích thước cho Android, iOS và tab trình duyệt. File nguồn có thể là `.svg` hoặc `.png`, miễn là vuông. Hình chính nên nằm gọn trong 60% ở giữa — Android cắt icon theo hình của launcher (tròn / vuông bo / giọt nước) và xén mất viền.
+
+### Người thuê cài thế nào
+
+| Máy | Cách |
+| --- | --- |
+| Android / Chrome | Thẻ **"Cài … vào máy"** hiện ở đầu trang `/me`, bấm một nút là xong |
+| iPhone / Safari | Không có API cài đặt — Apple không cho. Thẻ đó chuyển thành hướng dẫn 3 bước: Chia sẻ → Thêm vào MH chính → Thêm |
+| iPhone / Chrome | Không cài được. Phải mở bằng Safari |
+
+Bấm dấu × trên thẻ là ẩn vĩnh viễn (lưu ở `localStorage`).
+
+### Yêu cầu bắt buộc
+
+**HTTPS.** Không có HTTPS thì service worker không đăng ký, không cài được app, và camera quét CCCD cũng không mở. Vercel/Netlify/Cloudflare có sẵn. Chạy local muốn thử thì `next dev --experimental-https`.
+
+### ⚠️ Nếu sửa `public/sw.js`
+
+Tăng `SW_VERSION` trong **cả hai** file: `public/sw.js` và `src/components/common/service-worker.tsx`. Không tăng thì trình duyệt vẫn chạy bản cũ đã cache và bản vá của bạn nằm im.
+
+Và đọc kỹ khối ghi chú bảo mật ở đầu `sw.js` trước khi thêm bất cứ thứ gì vào cache.
+
+---
+
+## 6. Quét CCCD
+
+Người thuê tự quét CCCD trên điện thoại, chủ trọ duyệt. Trang `/me/identity` (người thuê) và `/admin/identity` (hàng chờ duyệt).
+
+### Đọc mã QR, không OCR
+
+Mặt trước thẻ CCCD/Căn cước có sẵn mã QR chứa 7 trường ngăn bằng `|`: số CCCD, số CMND cũ, họ tên, ngày sinh, giới tính, nơi thường trú, ngày cấp.
+
+Đọc mã đó chính xác tuyệt đối, miễn phí, chạy trong máy, không cần mạng. OCR ảnh thì đọc nhầm 0/O và rụng dấu tiếng Việt, tính tiền theo lượt, và bắt gửi ảnh giấy tờ tuỳ thân sang máy chủ bên thứ ba — thứ Nghị định 13/2023 coi là chuyển giao dữ liệu cá nhân nhạy cảm.
+
+Bộ giải mã: `BarcodeDetector` của hệ điều hành nếu có (Android/Chrome), rơi xuống `zxing-wasm` nếu không (iOS/Safari). File `.wasm` được tự host tại `/zxing_reader.wasm`, chép vào `public/` bởi `postinstall` — mặc định thư viện tải nó từ CDN jsDelivr, tức là mỗi lần quét lộ một request kèm IP người thuê ra ngoài.
+
+Mã mờ không quét được thì điền tay, vẫn gửi được.
+
+### Ba lớp bảo vệ dữ liệu
+
+1. **Người thuê không tự ghi được số CCCD.** Policy `profiles_update_own` (migration 0004) khoá cột `id_number`. Hồ sơ gửi lên nằm ở bảng riêng `id_documents` với trạng thái `pending`; chủ trọ bấm duyệt thì hàm `approve_id_document()` mới chép sang `profiles` — trong một giao dịch, cùng thành công hoặc cùng hỏng.
+2. **Bucket `id-photos` là private.** Khác hẳn `room-photos`. Không tồn tại URL nào mở được ảnh nếu không có chữ ký còn hạn; URL ký sống 2 phút và được dựng ngay lúc render.
+3. **Có nhật ký truy cập.** Mỗi lần ảnh được ký để hiển thị, một dòng vào `id_document_access_log`. Người thuê xem được ai đã mở giấy tờ của mình.
+
+### Đăng nhập bằng VNeID — không làm được
+
+Không có chương trình developer công khai. Kết nối phải ký với **C06 – Bộ Công an** theo Nghị định 69/2024/NĐ-CP, và thực tế chỉ ngân hàng, viễn thông, công chứng, sàn lớn được duyệt.
+
+Đừng nhầm với **định danh điện tử tổ chức** trên VNeID: cái đó miễn phí và đăng ký trong 5 phút, nhưng nó là *bạn* đăng nhập cổng dịch vụ công với tư cách doanh nghiệp — không cho app bạn nhận login của người khác.
+
+Nếu sau này thật sự cần xác thực CCCD là có thật, đường khả thi là mua dịch vụ xác thực điện tử từ nhà cung cấp đã được cấp phép (VNPT eKYC, Viettel, FPT ID Check) — họ có đường kết nối C06 và bán theo lượt gọi. Đó là *xác thực*, không phải nút "Đăng nhập bằng VNeID".
+
+---
+
+## 7. Deploy
 
 Vercel là đường ngắn nhất: import repo, dán biến môi trường, xong.
 
@@ -183,7 +249,7 @@ Backup không phải tuỳ chọn. Mất dữ liệu người thuê là mất th
 
 ---
 
-## 6. Cấu trúc
+## 8. Cấu trúc
 
 ```
 src/
@@ -191,21 +257,31 @@ src/
 ├─ app/
 │  ├─ (marketing)/       /, /rooms, /contact          — công khai
 │  ├─ (auth)/            /login, /forgot-password, /reset-password
-│  ├─ (admin)/admin/     dashboard, phòng, người thuê, hợp đồng, cài đặt
-│  ├─ (tenant)/me/       phòng của tôi, wifi, liên hệ, nội quy, cá nhân
+│  ├─ (admin)/admin/     dashboard, phòng, người thuê, hợp đồng, giấy tờ, cài đặt
+│  ├─ (tenant)/me/       phòng của tôi, wifi, giấy tờ, liên hệ, nội quy, cá nhân
 │  ├─ auth/callback/     đổi code Supabase lấy session
+│  ├─ manifest.ts        web app manifest (Next phục vụ tại /manifest.webmanifest)
+│  ├─ icon.png           favicon — sinh bằng `npm run icons`
+│  ├─ apple-icon.png     icon màn hình chính iOS — cùng script
 │  └─ api/               health, cron/keep-alive
-├─ features/             auth · rooms · tenants · tenancies · wifi · settings
+├─ features/             auth · rooms · tenants · tenancies · wifi · settings · identity
 │                        (mỗi domain: schema.ts + actions.ts + components/)
 ├─ components/ui/        primitive kiểu shadcn
-├─ components/common/    form, page-header, empty-state, confirm-form…
+├─ components/common/    form, page-header, empty-state, link, nav-progress,
+│                        install-prompt, service-worker…
 ├─ components/layout/    sidebar admin, bottom-nav tenant, user-menu
 ├─ lib/
 │  ├─ db/                repository.ts (interface) + demo-adapter + supabase-adapter
 │  ├─ auth/              dal.ts (guard) + session.ts
-│  └─ supabase/          server / client / admin / proxy
+│  ├─ supabase/          server / client / admin / proxy
+│  ├─ cccd.ts            parse mã QR trên thẻ căn cước
+│  └─ qr.ts              giải mã QR trong trình duyệt (BarcodeDetector → zxing-wasm)
 ├─ stores/               Zustand — CHỈ state giao diện
 └─ proxy.ts              Next 16 gọi là proxy, trước đây là middleware
+
+public/sw.js             service worker — ĐỌC ghi chú bảo mật ở đầu file
+assets/logo.svg          nguồn của toàn bộ icon
+scripts/generate-icons.mjs · scripts/copy-wasm.mjs
 ```
 
 ### Vài quyết định đáng biết
@@ -246,22 +322,41 @@ Next.js 16 chặn tối ưu ảnh từ IP nội bộ, nên Supabase local (`127.
 **Không dùng `loading.tsx`.**
 Trên Next 16.2 + Turbopack, loading boundary cấp route trên một segment dynamic khiến skeleton kẹt lại, nội dung không bao giờ hiện. Trang nào cần streaming thì dùng `<Suspense>` tường minh trong page — cách này chạy đúng (xem `/admin`).
 
+**App bắt buộc có mạng. Service worker tồn tại chỉ để app cài được.**
+Chrome trên Android chỉ bắn `beforeinstallprompt` — tức là nút "Cài đặt" mới hiện — khi trang có service worker đã đăng ký kèm hàm xử lý `fetch`. Không có `sw.js` thì người thuê phải tự mò menu ⋮ của trình duyệt. Mất mạng thì trình duyệt hiện màn hình lỗi của chính nó; không có trang offline giả vờ. Cờ `experimental.useOffline` của Next cũng cố ý **không** bật: nó giữ request thất bại ở trạng thái chờ rồi tự chạy lại, mà giao diện lúc đó đứng im không phân biệt được với treo.
+
+**Service worker KHÔNG cache trang đã đăng nhập.**
+Cache dùng chung cho cả origin, không tách theo tài khoản, và đăng xuất không xoá được nó. Nhà trọ hay có cảnh mượn điện thoại nhau — A đăng nhập, đăng xuất, B đăng nhập trên cùng máy. HTML của A nằm trong cache là B đọc được số CCCD, số phòng, mật khẩu wifi của A. Chỉ tài nguyên tĩnh có hash trong tên (`/_next/static/**`, `/icons/**`, `.wasm`) được cache.
+
+**`import Link from "next/link"` đã được thay bằng `@/components/common/link`.**
+Bản bọc thêm một component con vô hình gọi `useLinkStatus()`, nhờ đó thanh tiến trình ở đầu màn hình biết lúc nào đang chờ chuyển trang. Component đó render ra `null` — không thêm thẻ DOM nào, nên `<Link>` nằm trong `asChild` của Button hay trong flex có `gap` đều không bị lệch.
+
+**Thanh tiến trình chỉ hiện khi điều hướng thật sự phải chờ.**
+`useLinkStatus` không báo pending với route đã prefetch xong. Thêm hiệu ứng vào thao tác vốn đã tức thì chỉ làm nó *có cảm giác* chậm đi.
+
+**Ảnh CCCD ở bucket private, ảnh phòng ở bucket public.**
+Cố ý khác nhau. Ảnh phòng là quảng cáo, khách vãng lai phải xem được. Ảnh giấy tờ tuỳ thân là dữ liệu cá nhân nhạy cảm theo Nghị định 13/2023 — chỉ mở được bằng URL ký hạn 2 phút, và mỗi lần mở đều ghi vào `id_document_access_log`.
+
+**Duyệt CCCD đi qua SQL function, không qua hai câu UPDATE.**
+`approve_id_document()` đổi trạng thái hồ sơ *và* chép số sang `profiles` trong một giao dịch. Tách làm hai thì hồ sơ ghi "đã duyệt" mà `profiles.id_number` vẫn rỗng là trạng thái không ai phát hiện ra cho tới lúc công an kiểm tra tạm trú.
+
 ---
 
-## 7. Lệnh
+## 9. Lệnh
 
 ```bash
 npm run dev      # dev server (Turbopack)
 npm run build    # build production
 npm start        # chạy bản build
 npm run lint     # eslint
+npm run icons    # sinh lại bộ icon PWA từ assets/logo.svg
 npx tsc --noEmit # typecheck
 ```
 
 ---
 
-## 8. Chưa làm (Phase sau)
+## 10. Chưa làm (Phase sau)
 
-Chat · mã mở cổng/vân tay · ghi chỉ số điện nước · hoá đơn · thông báo · lưu ảnh CCCD & hợp đồng.
+Chat · mã mở cổng/vân tay · ghi chỉ số điện nước · hoá đơn · thông báo đẩy · lưu ảnh hợp đồng.
 
 Bật/tắt hiển thị các tính năng này ở `houseConfig.features` trong `src/config/site.ts`.

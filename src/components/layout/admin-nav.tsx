@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { Link } from "@/components/common/link";
 import { usePathname } from "next/navigation";
 import { BuildingIcon, MenuIcon } from "lucide-react";
 

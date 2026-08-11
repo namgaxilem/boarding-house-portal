@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from "@/components/common/link";
 import { BuildingIcon } from "lucide-react";
 
 import { ThemeToggle } from "@/components/common/theme";

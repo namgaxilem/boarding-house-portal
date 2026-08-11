@@ -94,6 +94,44 @@ export interface RoomPhoto {
   createdAt: string;
 }
 
+export type IdDocStatus = "pending" | "approved" | "rejected";
+
+/**
+ * Một lần người thuê gửi giấy tờ tuỳ thân lên để chủ trọ duyệt.
+ *
+ * Các trường ở đây là dữ liệu NGƯỜI THUÊ GỬI, chưa được duyệt. Bản chính thức
+ * nằm ở `Profile.idNumber` và chỉ được ghi khi chủ trọ bấm duyệt.
+ */
+export interface IdDocument {
+  id: string;
+  profileId: string;
+  status: IdDocStatus;
+
+  idNumber: string | null;
+  oldIdNumber: string | null;
+  fullName: string | null;
+  dateOfBirth: string | null;
+  gender: string | null;
+  residence: string | null;
+  issuedOn: string | null;
+
+  /** Đường dẫn trong bucket riêng tư `id-photos`. KHÔNG phải URL xem được. */
+  frontPath: string | null;
+  backPath: string | null;
+
+  source: "qr" | "manual";
+  reviewNote: string | null;
+  submittedAt: string;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+}
+
+/** Ảnh CCCD kèm URL đã ký, hạn rất ngắn. Chỉ dựng ngay trước khi render. */
+export interface IdDocumentPhotos {
+  frontUrl: string | null;
+  backUrl: string | null;
+}
+
 export interface WifiNetwork {
   id: string;
   ssid: string;
@@ -125,6 +163,11 @@ export interface RoomWithPhotos extends Room {
 export interface TenancyDetail extends Tenancy {
   room: Room;
   tenant: Profile;
+}
+
+/** Hàng chờ duyệt của chủ trọ — cần biết hồ sơ này là của ai. */
+export interface IdDocumentWithTenant extends IdDocument {
+  tenant: Pick<Profile, "id" | "fullName" | "email" | "idNumber">;
 }
 
 export interface TenantWithCurrentRoom extends Profile {

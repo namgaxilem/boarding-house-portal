@@ -1,6 +1,7 @@
 import {
   HomeIcon,
   DoorOpenIcon,
+  IdCardIcon,
   UsersIcon,
   SettingsIcon,
   WifiIcon,
@@ -22,6 +23,7 @@ export const ADMIN_NAV: NavItem[] = [
   { href: "/admin", label: "Tổng quan", icon: HomeIcon },
   { href: "/admin/rooms", label: "Phòng", icon: DoorOpenIcon, matchPrefix: true },
   { href: "/admin/tenants", label: "Người thuê", icon: UsersIcon, matchPrefix: true },
+  { href: "/admin/identity", label: "Giấy tờ", icon: IdCardIcon, matchPrefix: true },
   { href: "/admin/settings", label: "Cài đặt", icon: SettingsIcon, matchPrefix: true },
 ];
 
@@ -35,6 +37,7 @@ export const TENANT_NAV: NavItem[] = [
 
 /** Reachable from the tenant home page rather than the bottom bar. */
 export const TENANT_SECONDARY: NavItem[] = [
+  { href: "/me/identity", label: "Giấy tờ tuỳ thân", icon: IdCardIcon },
   { href: "/me/contact", label: "Liên hệ chủ trọ", icon: PhoneIcon },
   { href: "/me/rules", label: "Nội quy nhà trọ", icon: ScrollTextIcon },
 ];

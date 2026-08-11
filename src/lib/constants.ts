@@ -1,4 +1,5 @@
 import type {
+  IdDocStatus,
   RoomEventType,
   RoomStatus,
   Role,
@@ -61,6 +62,18 @@ export const ROOM_EVENT_LABEL: Record<RoomEventType, string> = {
 export const ROOM_EVENT_OPTIONS = (
   Object.keys(ROOM_EVENT_LABEL) as RoomEventType[]
 ).map((value) => ({ value, label: ROOM_EVENT_LABEL[value] }));
+
+export const ID_DOC_STATUS_LABEL: Record<IdDocStatus, string> = {
+  pending: "Chờ chủ trọ duyệt",
+  approved: "Đã duyệt",
+  rejected: "Bị từ chối",
+};
+
+export const ID_DOC_STATUS_STYLE: Record<IdDocStatus, string> = {
+  pending: "bg-warning/15 text-warning-foreground border-warning/30 dark:text-warning",
+  approved: "bg-success/12 text-success border-success/25",
+  rejected: "bg-destructive/10 text-destructive border-destructive/25",
+};
 
 export const ROLE_LABEL: Record<Role, string> = {
   admin: "Chủ trọ",

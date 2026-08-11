@@ -35,6 +35,13 @@ const nextConfig: NextConfig = {
   // Instant Navigation (`instant`) và React <Activity> giữ state khi điều hướng.
   cacheComponents: true,
 
+  // Prefetch một "App Shell" dùng chung cho mỗi route thay vì prefetch riêng cho
+  // từng <Link>. Trang danh sách phòng có 10 link trỏ về cùng một route động —
+  // trước là 10 lần tải, giờ là 1. Đây cũng là thứ khiến điều hướng lúc mạng chập
+  // chờn vẫn hiện được khung trang ngay (xem experimental.useOffline bên dưới).
+  // Yêu cầu cacheComponents — thiếu là next build lỗi ngay ở bước đọc config.
+  partialPrefetching: true,
+
   images: {
     remotePatterns: supabase
       ? [
@@ -62,6 +69,33 @@ const nextConfig: NextConfig = {
       // chọn nhiều ảnh một lần nên cần nới mức mặc định 1MB.
       bodySizeLimit: "12mb",
     },
+
+    // KHÔNG bật `useOffline`. App yêu cầu có mạng. Cờ đó giữ request thất bại ở
+    // trạng thái chờ rồi tự chạy lại — nghe hay, nhưng giao diện khi đó đứng im
+    // không phân biệt được với treo, và người dùng không có cách nào huỷ.
+  },
+
+  async headers() {
+    return [
+      {
+        // Service worker KHÔNG được cache. Trình duyệt cache sw.js một ngày là
+        // bản vá của bạn cũng nằm chờ một ngày mới tới được máy người dùng.
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+        ],
+      },
+      {
+        // File wasm của bộ giải mã QR có hash trong nội dung và không bao giờ
+        // đổi trong một phiên bản zxing-wasm — cache thoải mái một năm.
+        source: "/zxing_reader.wasm",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+          { key: "Content-Type", value: "application/wasm" },
+        ],
+      },
+    ];
   },
 };
 

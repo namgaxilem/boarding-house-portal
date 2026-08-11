@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import Link from "next/link";
+import { Link } from "@/components/common/link";
 import Image from "next/image";
 import {
   ArrowRightIcon,

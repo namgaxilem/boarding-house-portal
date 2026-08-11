@@ -155,6 +155,43 @@
   }
 }
 
+/* ---------------------------------------------------------------------------
+   Phản hồi điều hướng
+   Hai lớp: thanh ở mép trên (toàn app) và chấm tại chỗ (trên link vừa bấm).
+   Cả hai chạy bằng CSS animation chứ không bằng state React — chạy trên
+   compositor nên vẫn mượt trong lúc luồng chính đang bận dựng trang mới.
+--------------------------------------------------------------------------- */
+
+/* Bò nhanh tới 60% rồi bò chậm dần tới 90%. Không bao giờ chạm 100%: chỉ lúc
+   trang thật sự xong (.is-done) mới lấp đầy. Thanh đứng ở 100% mà trang chưa
+   hiện là thứ khiến người ta tưởng app treo. */
+@keyframes nav-progress-grow {
+  0% {
+    transform: scaleX(0.02);
+  }
+  35% {
+    transform: scaleX(0.6);
+  }
+  70% {
+    transform: scaleX(0.82);
+  }
+  100% {
+    transform: scaleX(0.9);
+  }
+}
+
+@keyframes link-hint-in {
+  to {
+    opacity: 0.9;
+  }
+}
+
+@keyframes link-hint-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
 @layer base {
   * {
     border-color: var(--border);
@@ -200,6 +237,61 @@
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: var(--border) transparent;
+  }
+
+  /* Thanh tiến trình điều hướng — components/common/nav-progress.tsx */
+  .nav-progress {
+    position: fixed;
+    inset-block-start: 0;
+    inset-inline: 0;
+    z-index: 60;
+    height: 2px;
+    pointer-events: none;
+  }
+
+  .nav-progress-bar {
+    height: 100%;
+    width: 100%;
+    /* Đổi `transform` chứ không đổi `width`: width bắt trình duyệt tính lại
+       layout mỗi khung hình, transform thì không. */
+    transform-origin: left;
+    transform: scaleX(0);
+    background: linear-gradient(
+      90deg,
+      color-mix(in oklch, var(--primary) 55%, transparent),
+      var(--primary)
+    );
+    animation: nav-progress-grow 10s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+  }
+
+  .nav-progress-bar.is-done {
+    animation: none;
+    transform: scaleX(1);
+    opacity: 0;
+    transition:
+      transform 140ms ease-out,
+      opacity 200ms ease-out 60ms;
+  }
+
+  /* Chấm "đang mở" trên chính link vừa bấm — components/common/link.tsx.
+     Luôn chiếm chỗ sẵn (visibility chứ không phải display) để lúc hiện ra không
+     đẩy chữ bên cạnh nhảy. */
+  .link-hint {
+    display: inline-block;
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 9999px;
+    background: currentColor;
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  .link-hint.is-pending {
+    visibility: visible;
+    /* Trễ 120ms giống thanh trên: chuyển trang tức thì thì không chớp gì cả. */
+    animation:
+      link-hint-in 180ms ease forwards 120ms,
+      link-hint-pulse 1s ease-in-out infinite 120ms;
   }
 }
 

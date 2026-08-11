@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from "@/components/common/link";
 import { HomeIcon, SearchXIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";

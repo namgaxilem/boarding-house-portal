@@ -1,0 +1,28 @@
+<!--
+  Logo nguồn cho toàn bộ icon của app.
+
+  THAY FILE NÀY BẰNG LOGO THẬT rồi chạy `npm run icons` là xong — script sẽ sinh
+  lại đủ bộ kích thước cho Android, iOS và tab trình duyệt.
+
+  Yêu cầu với file thay thế:
+    - vuông, tốt nhất là 512×512 (SVG thì viewBox vuông là đủ);
+    - hình chính nằm gọn trong 60% ở giữa, vì Android cắt icon theo hình của
+      launcher (tròn / vuông bo / giọt nước) — chi tiết sát mép sẽ bị xén;
+    - PNG cũng được, chỉ cần đổi tên thành logo.png, script tự nhận.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="112" fill="#0d7d78" />
+
+  <!-- Mái nhà + thân nhà, nét dày để còn đọc được ở cỡ 32px trên tab trình duyệt. -->
+  <g
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="28"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M136 236 256 140 376 236" />
+    <path d="M168 222 V368 H344 V222" />
+    <path d="M232 368 V296 H280 V368" />
+  </g>
+</svg>

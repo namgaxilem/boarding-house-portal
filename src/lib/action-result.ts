@@ -69,6 +69,14 @@ export function describeError(error: unknown, fallback: string): string {
     WIFI_NOT_FOUND: "Không tìm thấy mạng wifi.",
     PHOTO_UPLOAD_FORBIDDEN:
       "Không có quyền tải ảnh lên. Đăng nhập lại bằng tài khoản chủ trọ.",
+
+    ID_PHOTO_UPLOAD_FORBIDDEN:
+      "Không tải được ảnh giấy tờ. Đăng xuất rồi đăng nhập lại và thử lần nữa.",
+    ID_DOCUMENT_PENDING_EXISTS:
+      "Bạn đang có một hồ sơ chờ chủ trọ duyệt. Xoá hồ sơ cũ trước khi gửi cái mới.",
+    ID_DOCUMENT_NOT_FOUND: "Không tìm thấy hồ sơ giấy tờ này.",
+    ID_DOCUMENT_ALREADY_REVIEWED: "Hồ sơ này đã được xử lý rồi. Tải lại trang để xem.",
+    ID_DOCUMENT_NO_NUMBER: "Hồ sơ thiếu số CCCD nên không duyệt được.",
   };
 
   return messages[code] ?? fallback;

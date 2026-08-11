@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { Link } from "@/components/common/link";
 import { useMemo } from "react";
 import { LayoutGridIcon, SearchIcon, UsersIcon, XIcon } from "lucide-react";
 
