@@ -1,0 +1,29 @@
+<!--
+  Dấu hiệu nhận diện, KHÔNG có nền.
+
+  Dùng khi đặt logo lên một nền có sẵn: đầu thư, hợp đồng in ra, con dấu, áo.
+  App không dùng file này — app dựng lại cùng hình đó bằng React ở
+  `src/components/common/logo.tsx` để nó ăn theo kích thước và không tốn thêm
+  một request ảnh.
+
+  Phần thân nhà dùng `currentColor`, nên đặt vào chỗ nào là ăn màu chữ chỗ đó.
+  Hai ô hổ phách giữ nguyên màu — đó là điểm nhấn thương hiệu, không phải màu
+  trang trí.
+
+  KHÔNG dùng file này làm nguồn sinh icon: icon cần nền bo góc, xem logo.svg.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 320" width="360" height="320">
+  <path
+    d="M8 152 L180 8 L352 152 L302 152 L302 312 L58 312 L58 152 Z"
+    fill="currentColor"
+  />
+
+  <!-- Dải ngăn tầng và bốn ô cửa được KHOÉT bằng cách vẽ đè màu nền. Trên nền
+       không đồng màu thì đổi `fill` của bốn hình này cho khớp, hoặc dùng
+       logo.svg bản có nền. -->
+  <rect x="58" y="220" width="244" height="27" fill="#ffffff" />
+  <rect x="96" y="172" width="72" height="44" rx="11" fill="#f6b93b" />
+  <rect x="192" y="172" width="72" height="44" rx="11" fill="#ffffff" />
+  <rect x="96" y="252" width="72" height="44" rx="11" fill="#ffffff" />
+  <rect x="192" y="252" width="72" height="44" rx="11" fill="#f6b93b" />
+</svg>

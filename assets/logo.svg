@@ -1,0 +1,50 @@
+<!--
+  ===========================================================================
+   Logo nguồn cho TOÀN BỘ icon của app.
+  ===========================================================================
+
+  Sửa file này rồi chạy `npm run icons` là sinh lại cả bộ — favicon, icon iOS,
+  icon Android (thường + maskable) và ảnh chia sẻ mạng xã hội.
+
+  Ý tưởng: NHÀ TRỌ, không phải "cái nhà".
+  Một mái nhà, thân nhà chia làm HAI TẦNG bằng một dải ngang, mỗi tầng hai
+  phòng — đó là thứ phân biệt nhà trọ với một biểu tượng ngôi nhà bất kỳ.
+  Hai ô sáng màu hổ phách nằm chéo nhau là hai phòng đang có người ở.
+
+  Thiết kế cho 32px TRƯỚC, rồi mới đến 512px:
+    - hình khối ĐẶC, không dùng nét viền — nét mảnh nhoè khi thu nhỏ;
+    - đúng bốn ô cửa, ô nào cũng ≥ 40px trên khung 512 (≈2,5px ở cỡ 32);
+    - dải ngăn tầng dày 26px, còn thấy được cả khi thu về 32px;
+    - hai ô hổ phách tạo điểm nhìn, nhờ đó icon không thành một khối trắng.
+
+  Ràng buộc nếu vẽ lại:
+    - viewBox vuông;
+    - hình chính nằm trong khoảng giữa (ở đây rộng 328/512 ≈ 64%), vì Android
+      cắt icon theo hình của launcher — chi tiết sát mép sẽ bị xén;
+    - PNG cũng được, đổi tên thành logo.png là script tự nhận.
+
+  Màu: nền #0d7d78 phải khớp với `BRAND_BG` trong scripts/generate-icons.mjs
+  và với biến CSS `primary` trong src/app/globals.css.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Nền bo góc: icon nổi trên cả thanh tab sáng lẫn tối, không cần viền. -->
+  <rect width="512" height="512" rx="112" fill="#0d7d78" />
+
+  <!-- Mái + thân là MỘT hình khép kín. Gộp lại thì không bao giờ hở đường chỉ
+       giữa hai mảnh khi trình duyệt làm mượt lúc thu nhỏ. -->
+  <path
+    d="M92 252 L256 112 L420 252 L372 252 L372 404 L140 404 L140 252 Z"
+    fill="#ffffff"
+  />
+
+  <!-- Dải ngăn hai tầng. Đây là chi tiết mang nghĩa "nhà trọ" và cũng là chi
+       tiết sống sót tốt nhất khi thu nhỏ — một đường ngang dày luôn đọc được. -->
+  <rect x="140" y="318" width="232" height="26" fill="#0d7d78" />
+
+  <!-- Bốn phòng. Hai ô hổ phách nằm chéo nhau: có người ở, và thế cân bằng
+       chéo giữ cho icon không bị lệch về một bên. -->
+  <rect x="176" y="272" width="68" height="42" rx="10" fill="#f6b93b" />
+  <rect x="268" y="272" width="68" height="42" rx="10" fill="#0d7d78" />
+  <rect x="176" y="348" width="68" height="42" rx="10" fill="#0d7d78" />
+  <rect x="268" y="348" width="68" height="42" rx="10" fill="#f6b93b" />
+</svg>

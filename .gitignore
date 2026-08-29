@@ -3,8 +3,12 @@
 # dependencies
 /node_modules
 /.pnp
-.pnp.js
-.yarn/install-state.gz
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 
 # testing
 /coverage
@@ -24,17 +28,34 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.pnpm-debug.log*
 
-# local env files
-.env*.local
+# env files — .env.example is the documented template and must be committed
+.env*
+!.env.example
 
 # vercel
 .vercel
+
+# supabase local stack
+/supabase/.branches
+/supabase/.temp
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
 
-# IDE
-.idea
-package-lock.json
+# state cục bộ của IDE và công cụ
+#
+# Hai thư mục này đã tự ignore bằng .gitignore lồng bên trong (dòng `*`), nhưng
+# chính file .gitignore đó cũng bị ignore — nên máy nào chưa có nó thì cả thư mục
+# lại hiện ra là untracked. Khai ở đây một lần cho chắc.
+/.idea/
+/.serena/
+
+# KHÔNG ignore cả .claude/: launch.json là cấu hình dev server dùng chung, đã
+# commit. Chỉ file quyền cục bộ của từng máy mới bỏ qua.
+.claude/settings.local.json
+
+# Bản sao từ node_modules, sinh lại bằng postinstall (scripts/copy-wasm.mjs)
+public/zxing_reader.wasm
