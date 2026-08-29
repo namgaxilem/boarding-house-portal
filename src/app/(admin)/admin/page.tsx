@@ -6,6 +6,7 @@ import {
   BanknoteIcon,
   DoorOpenIcon,
   PlusIcon,
+  ReceiptTextIcon,
   UsersIcon,
   WrenchIcon,
 } from "lucide-react";
@@ -17,6 +18,8 @@ import { PageHeader } from "@/components/common/page-header";
 import { StatCard } from "@/components/common/stat-card";
 import { RoomStatusBadge } from "@/components/common/status-badge";
 import { EmptyState } from "@/components/common/empty-state";
+import { TodoCard } from "@/features/dashboard/components/todo-card";
+import { getAdminStats, getAdminTodo } from "@/features/dashboard/queries";
 import { db } from "@/lib/db";
 import { formatCompactVND, formatDateTime, formatVND } from "@/lib/format";
 import { ROOM_EVENT_LABEL } from "@/lib/constants";
@@ -49,6 +52,12 @@ export default function AdminDashboardPage() {
         <Stats />
       </Suspense>
 
+      {/* Việc tồn đứng TRÊN sơ đồ phòng: mở trang tổng quan ra, câu hỏi đầu tiên
+          luôn là "hôm nay phải làm gì", không phải "phòng nào đang trống". */}
+      <Suspense fallback={<Skeleton className="h-40 w-full rounded-xl" />}>
+        <Todo />
+      </Suspense>
+
       <div className="grid gap-6 lg:grid-cols-5">
         <div className="lg:col-span-3">
           <Suspense fallback={<Skeleton className="h-72 w-full rounded-xl" />}>
@@ -65,11 +74,16 @@ export default function AdminDashboardPage() {
   );
 }
 
+async function Todo() {
+  const todo = await getAdminTodo();
+  return <TodoCard todo={todo} />;
+}
+
 async function Stats() {
-  const stats = await db.getAdminStats();
+  const stats = await getAdminStats();
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <StatCard
         label="Đang ở"
         value={`${stats.occupiedRooms}/${stats.totalRooms}`}
@@ -100,14 +114,24 @@ async function Stats() {
         sublabel={formatVND(stats.monthlyRevenue)}
         icon={<BanknoteIcon />}
       />
+      <StatCard
+        label="Hoá đơn chưa thu"
+        value={String(stats.unpaidInvoices)}
+        sublabel={
+          stats.unpaidInvoices > 0 ? formatVND(stats.unpaidAmount) : "Đã thu hết"
+        }
+        icon={<ReceiptTextIcon />}
+        accent={stats.unpaidInvoices > 0 ? "warning" : "success"}
+        href="/admin/invoices?status=issued"
+      />
     </div>
   );
 }
 
 function StatsSkeleton() {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {Array.from({ length: 4 }).map((_, index) => (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      {Array.from({ length: 5 }).map((_, index) => (
         <Skeleton key={index} className="h-[74px] rounded-xl" />
       ))}
     </div>

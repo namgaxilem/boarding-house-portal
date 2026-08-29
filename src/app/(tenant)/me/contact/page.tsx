@@ -2,7 +2,6 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import {
   ClockIcon,
-  LandmarkIcon,
   MapPinIcon,
   MessageCircleIcon,
   PhoneIcon,
@@ -11,7 +10,8 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CopyButton } from "@/components/common/copy-button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { PaymentMethods } from "@/features/payments/components/payment-methods";
 import { getMyTenancy } from "@/features/tenants/queries";
 import { houseConfig, fullAddress, telHref, zaloHref } from "@/config/site";
 import { formatPhone } from "@/lib/format";
@@ -23,7 +23,7 @@ export const metadata: Metadata = { title: "Liên hệ chủ trọ" };
 export const instant = true;
 
 export default function MyContactPage() {
-  const { contact, bank, address } = houseConfig;
+  const { contact, address } = houseConfig;
 
   return (
     <div className="space-y-4">
@@ -119,74 +119,24 @@ export default function MyContactPage() {
         </CardContent>
       </Card>
 
-      {bank && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Đóng tiền phòng</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 pt-4">
-            <div className="flex items-center gap-3">
-              <span
-                aria-hidden
-                className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground"
-              >
-                <LandmarkIcon className="size-4" />
-              </span>
-              <div>
-                <p className="text-xs text-muted-foreground">Ngân hàng</p>
-                <p className="font-medium">{bank.name}</p>
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Số tài khoản</p>
-              <div className="flex items-center gap-1">
-                <code className="min-w-0 flex-1 truncate rounded-md bg-secondary px-2.5 py-1.5 font-mono text-sm">
-                  {bank.accountNumber}
-                </code>
-                <CopyButton value={bank.accountNumber} label="Sao chép số tài khoản" />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Chủ tài khoản</p>
-              <p className="font-medium">{bank.accountHolder}</p>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Nội dung chuyển khoản</p>
-              <Suspense
-                fallback={<TransferNote note={null} fallback={bank.transferNote} />}
-              >
-                <MyTransferNote fallback={bank.transferNote} />
-              </Suspense>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Số tài khoản và ảnh QR lấy từ /admin/settings/payments, không từ file
+          cấu hình — chủ trọ đổi ngân hàng thì trang này đổi theo ngay. */}
+      <Suspense fallback={<Skeleton className="h-64 w-full rounded-xl" />}>
+        <MyPaymentMethods />
+      </Suspense>
     </div>
   );
 }
 
-function TransferNote({ note, fallback }: { note: string | null; fallback: string }) {
-  return (
-    <div className="flex items-center gap-1">
-      <code className="min-w-0 flex-1 truncate rounded-md bg-secondary px-2.5 py-1.5 font-mono text-sm">
-        {note ?? fallback}
-      </code>
-      {note && <CopyButton value={note} label="Sao chép nội dung" />}
-    </div>
-  );
-}
-
-async function MyTransferNote({ fallback }: { fallback: string }) {
+async function MyPaymentMethods() {
   const tenancy = await getMyTenancy();
 
-  // Pre-filling the transfer note saves the tenant retyping it every month.
+  // Điền sẵn nội dung chuyển khoản để người thuê khỏi gõ lại mỗi tháng. Chưa được
+  // xếp phòng thì bỏ trống còn hơn gợi ý một cú pháp sai.
   return (
-    <TransferNote
-      note={tenancy ? `${tenancy.room.code} tien phong` : null}
-      fallback={fallback}
+    <PaymentMethods
+      title="Đóng tiền phòng"
+      transferNote={tenancy ? `${tenancy.room.code} tien phong` : undefined}
     />
   );
 }

@@ -19,7 +19,7 @@ export function TenantBottomNav() {
   return (
     <nav
       aria-label="Điều hướng"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur-sm pb-safe"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur-sm pb-safe print:hidden"
     >
       <ul className="mx-auto flex max-w-lg items-stretch">
         {TENANT_NAV.map((item) => {

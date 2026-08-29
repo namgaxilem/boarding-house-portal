@@ -305,3 +305,60 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   In hoá đơn ra giấy / lưu PDF
+
+   Không cần thư viện sinh PDF nào: trình duyệt nào cũng có sẵn "Lưu thành PDF"
+   trong hộp thoại in, và nó dựng file từ chính HTML đang hiện — nên hoá đơn in
+   ra không bao giờ lệch với hoá đơn trên màn hình.
+
+   Phần khung (sidebar, header, nút bấm) được ẩn bằng biến thể `print:hidden`
+   của Tailwind ngay tại chỗ. Ở đây chỉ còn những thứ không gắn với một thẻ nào.
+--------------------------------------------------------------------------- */
+@media print {
+  /* Giấy luôn trắng. Người thuê để máy ở chế độ tối rồi bấm In sẽ nhận về một
+     trang đen kịt nếu không có khối này — và tốn nguyên hộp mực. */
+  :root,
+  .dark {
+    --background: #fff;
+    --foreground: #000;
+    --card: #fff;
+    --card-foreground: #000;
+    --popover: #fff;
+    --popover-foreground: #000;
+    --secondary: #f4f4f4;
+    --secondary-foreground: #000;
+    --muted: #f4f4f4;
+    --muted-foreground: #444;
+    --accent: #f4f4f4;
+    --accent-foreground: #000;
+    --border: #c4c4c4;
+    --input: #c4c4c4;
+  }
+
+  @page {
+    margin: 14mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  /* Thẻ hoá đơn không được cắt ngang giữa hai trang giấy. */
+  .print-keep {
+    break-inside: avoid;
+  }
+
+  /* Bảng đang cuộn ngang trên màn hình phải xổ hết ra khi in — phần bị cuộn
+     khuất không có cách nào lật sang được trên giấy. */
+  .overflow-x-auto {
+    overflow: visible !important;
+  }
+
+  /* Bỏ đổ bóng: máy in dựng nó thành một mảng xám lem nhem. */
+  * {
+    box-shadow: none !important;
+  }
+}

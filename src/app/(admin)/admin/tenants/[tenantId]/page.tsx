@@ -22,6 +22,7 @@ import { PageHeader } from "@/components/common/page-header";
 import { TenancyStatusBadge } from "@/components/common/status-badge";
 import { ConfirmForm } from "@/components/common/confirm-form";
 import { ResetTenantPasswordForm } from "@/features/tenants/components/reset-password-form";
+import { GateCredentialForm } from "@/features/tenants/components/gate-credential-form";
 import { deleteTenant, toggleTenantActive } from "@/features/tenants/actions";
 import { db } from "@/lib/db";
 import {
@@ -71,7 +72,10 @@ async function TenantDetail(props: PageProps<"/admin/tenants/[tenantId]">) {
   const tenant = await db.getTenant(tenantId);
   if (!tenant) notFound();
 
-  const tenancies = await db.listTenanciesByTenant(tenant.id);
+  const [tenancies, gateCredential] = await Promise.all([
+    db.listTenanciesByTenant(tenant.id),
+    db.getGateCredential(tenant.id),
+  ]);
   const error = typeof searchParams.error === "string" ? searchParams.error : null;
 
   return (
@@ -252,6 +256,8 @@ async function TenantDetail(props: PageProps<"/admin/tenants/[tenantId]">) {
               )}
             </CardContent>
           </Card>
+
+          <GateCredentialForm tenantId={tenant.id} credential={gateCredential} />
         </div>
 
         <div className="space-y-6 lg:col-span-2">

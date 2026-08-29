@@ -2,12 +2,13 @@
 
 import { Link } from "@/components/common/link";
 import { usePathname } from "next/navigation";
-import { BuildingIcon, KeyRoundIcon, WifiIcon } from "lucide-react";
+import { BuildingIcon, KeyRoundIcon, QrCodeIcon, WifiIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 const TABS = [
   { href: "/admin/settings", label: "Nhà trọ", icon: BuildingIcon },
+  { href: "/admin/settings/payments", label: "Nhận tiền", icon: QrCodeIcon },
   { href: "/admin/settings/wifi", label: "Wifi", icon: WifiIcon },
   { href: "/admin/settings/account", label: "Tài khoản", icon: KeyRoundIcon },
 ];

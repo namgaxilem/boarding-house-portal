@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Link } from "@/components/common/link";
 import { notFound } from "next/navigation";
 import {
+  ArrowRightIcon,
   LogInIcon,
   LogOutIcon,
   PencilIcon,
@@ -26,6 +27,7 @@ import { RoomStatusBadge } from "@/components/common/status-badge";
 import { ConfirmForm } from "@/components/common/confirm-form";
 import { RoomEventForm } from "@/features/rooms/components/room-event-form";
 import { EventTimeline, TenancyHistory } from "@/features/rooms/components/room-timeline";
+import { RequestList } from "@/features/maintenance/components/request-list";
 import { PhotoGrid } from "@/features/rooms/components/photo-grid";
 import { PhotoUploader } from "@/features/rooms/components/photo-uploader";
 import { deleteRoom } from "@/features/rooms/actions";
@@ -72,10 +74,13 @@ async function RoomDetail(props: PageProps<"/admin/rooms/[roomId]">) {
   const room = await db.getRoom(roomId);
   if (!room) notFound();
 
-  const [tenancies, events, photos] = await Promise.all([
+  const [tenancies, events, photos, requests] = await Promise.all([
     db.listTenanciesByRoom(room.id),
     db.listRoomEvents(room.id),
     db.listRoomPhotos(room.id),
+    // Chỉ phiếu CHƯA XONG. Phiếu đã đóng thuộc về lịch sử, và lịch sử của phòng
+    // đã có nhật ký ở ngay dưới — hai danh sách dài song song thì không ai đọc cả.
+    db.listMaintenanceRequests({ roomId: room.id, status: "active" }),
   ]);
 
   const isFull = room.occupants.length >= room.maxOccupants;
@@ -261,6 +266,28 @@ async function RoomDetail(props: PageProps<"/admin/rooms/[roomId]">) {
               <TenancyHistory tenancies={tenancies} />
             </CardContent>
           </Card>
+
+          {/* Đứng TRÊN nhật ký: cái đang hỏng quan trọng hơn cái đã sửa xong. */}
+          {requests.length > 0 && (
+            <Card className="border-warning/30">
+              <CardHeader className="flex-row items-center justify-between">
+                <CardTitle>Đang chờ sửa ({requests.length})</CardTitle>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href="/admin/maintenance">
+                    Tất cả báo hỏng
+                    <ArrowRightIcon />
+                  </Link>
+                </Button>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <RequestList
+                  requests={requests}
+                  basePath="/admin/maintenance"
+                  showRoom={false}
+                />
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

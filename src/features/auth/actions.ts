@@ -1,14 +1,17 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { getCurrentUser, requireUser } from "@/lib/auth/dal";
+import { getCurrentUser, requireAdmin, requireUser } from "@/lib/auth/dal";
+import { db } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
 import { env } from "@/lib/env";
 import { HOME_PATH } from "@/lib/constants";
-import { fail, invalid, ok, type ActionResult } from "@/lib/action-result";
+import { describeError, fail, invalid, ok, type ActionResult } from "@/lib/action-result";
 
 import {
+  accountSchema,
   changePasswordSchema,
   forgotPasswordSchema,
   loginSchema,
@@ -121,4 +124,79 @@ export async function changePassword(
   if (error) return fail("Không đổi được mật khẩu. Thử lại sau.");
 
   return ok("Đã đổi mật khẩu.");
+}
+
+/**
+ * Sửa họ tên và email của CHÍNH tài khoản đang đăng nhập.
+ *
+ * `requireAdmin`, không phải `requireUser` — cố ý.
+ *
+ * Server Action là endpoint POST công khai: dùng `requireUser` ở đây là đồng
+ * thời cho MỌI người thuê tự đổi email đăng nhập của họ. App này không có tính
+ * năng đó — tài khoản do chủ trọ tạo, người thuê không tự đăng ký được
+ * (`enable_signup = false`) và cũng không tự sửa được số CCCD. Để họ lặng lẽ đổi
+ * email là phá mất bản ghi "ai là ai" mà chủ trọ đã nhập.
+ *
+ * Chỉ sửa hàng của người đang đăng nhập: id lấy từ phiên, KHÔNG nhận từ form.
+ * Nhận id từ form là mở đường cho một chủ trọ sửa tài khoản chủ trọ khác.
+ */
+export async function updateAccount(
+  _prev: ActionResult<string> | null,
+  formData: FormData,
+): Promise<ActionResult<string>> {
+  const user = await requireAdmin();
+
+  const parsed = accountSchema.safeParse({
+    fullName: formData.get("fullName"),
+    email: formData.get("email"),
+    currentPassword: formData.get("currentPassword") ?? undefined,
+  });
+  if (!parsed.success) return invalid(parsed.error);
+
+  const { fullName, email, currentPassword } = parsed.data;
+  const emailChanged = email !== user.email.toLowerCase();
+
+  // Đổi tên hiển thị thì không bắt gõ mật khẩu — đó là thay đổi vô hại. Đổi
+  // email là đổi thứ dùng để ĐĂNG NHẬP, và gõ sai một ký tự là tự khoá mình ra
+  // ngoài; chỗ đó phải chắc chắn đúng là chủ tài khoản đang ngồi trước máy.
+  if (emailChanged) {
+    if (!currentPassword) {
+      return invalid({
+        issues: [
+          { path: ["currentPassword"], message: "Nhập mật khẩu để xác nhận đổi email" },
+        ],
+      });
+    }
+
+    const supabase = await createClient();
+    // Supabase không có lệnh "kiểm mật khẩu này đúng không", nên đăng nhập lại
+    // bằng email HIỆN TẠI là cách duy nhất để xác thực.
+    const { error } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: currentPassword,
+    });
+    if (error) {
+      return invalid({
+        issues: [{ path: ["currentPassword"], message: "Mật khẩu không đúng" }],
+      });
+    }
+  }
+
+  try {
+    await db.updateOwnAccount(user.id, { fullName, email });
+  } catch (error) {
+    return fail(describeError(error, "Không cập nhật được tài khoản."));
+  }
+
+  // Phiên đăng nhập vẫn sống (cùng user id), nhưng JWT còn mang email cũ cho tới
+  // lần làm mới sau. Giao diện không bị ảnh hưởng: `getCurrentUser()` đọc email
+  // từ `profiles`, không đọc từ token.
+  revalidatePath("/admin/settings/account");
+  revalidatePath("/admin", "layout");
+
+  return ok(
+    emailChanged
+      ? `Đã lưu. Từ lần sau đăng nhập bằng ${email} — mật khẩu giữ nguyên.`
+      : "Đã lưu thông tin tài khoản.",
+  );
 }

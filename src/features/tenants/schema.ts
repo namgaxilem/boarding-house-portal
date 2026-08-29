@@ -49,6 +49,26 @@ export const tenantSchema = z.object({
   note: optionalText(1000, "Ghi chú"),
 });
 
+/**
+ * Mã mở cổng / vân tay — CHỦ TRỌ NHẬP, người thuê không thấy.
+ *
+ * Đây là ghi chép nội bộ: chủ trọ cần biết "ngăn vân tay số 3 là của ai" để xoá
+ * đúng ngăn khi có người trả phòng. Bảng `gate_credentials` không có policy nào
+ * cho người thuê, nên không có Server Action nào của họ đọc tới được.
+ */
+export const gateCredentialSchema = z.object({
+  gateCode: z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) => (value ? value.replace(/\s/g, "") : null))
+    .refine((value) => value === null || /^[0-9*#]{4,20}$/.test(value), {
+      message: "Mã cổng gồm 4–20 ký tự, chỉ số và dấu * #",
+    }),
+  fingerprintSlot: optionalText(60, "Ngăn vân tay"),
+  note: optionalText(500, "Ghi chú"),
+});
+
 export const createTenantSchema = tenantSchema.extend({
   password: z
     .string()

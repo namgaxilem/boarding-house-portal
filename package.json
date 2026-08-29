@@ -15,7 +15,9 @@
     "create-admin": "node --env-file=.env.local scripts/create-admin.mjs",
     "icons": "node scripts/generate-icons.mjs",
     "postinstall": "node scripts/copy-wasm.mjs",
-    "db:studio": "supabase status -o env | grep STUDIO"
+    "db:studio": "supabase status -o env | grep STUDIO",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.1",
@@ -56,6 +58,7 @@
     "sharp": "^0.35.3",
     "supabase": "^2.111.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   }
 }

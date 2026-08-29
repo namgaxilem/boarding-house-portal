@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { authorizeCron } from "@/lib/cron-auth";
 import { db } from "@/lib/db";
 
 /**
@@ -9,15 +10,8 @@ import { db } from "@/lib/db";
  *   curl -H "Authorization: Bearer $CRON_SECRET" https://<app>/api/cron/keep-alive
  */
 export async function GET(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-
-  // Without a secret the endpoint stays closed rather than open by default.
-  if (!secret) {
-    return NextResponse.json({ error: "CRON_SECRET chưa được cấu hình" }, { status: 503 });
-  }
-  if (request.headers.get("authorization") !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const denied = authorizeCron(request);
+  if (denied) return denied;
 
   // A trivial query is enough to count as activity.
   const rooms = await db.listVacantRooms();

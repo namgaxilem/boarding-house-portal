@@ -14,7 +14,15 @@ export const db: Repository = supabaseAdapter;
 
 export type {
   EndTenancyInput,
+  GateCredentialInput,
   IdDocumentInput,
+  InvoiceFilter,
+  InvoiceInput,
+  MaintenanceFilter,
+  MaintenanceInput,
+  MeterReadingInput,
+  NotificationInput,
+  PaymentAccountInput,
   RecentEvent,
   Repository,
   Roommate,

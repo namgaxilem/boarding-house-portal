@@ -1,8 +1,5 @@
-import { Link } from "@/components/common/link";
-import { BuildingIcon } from "lucide-react";
-
+import { BrandLockup } from "@/components/common/logo";
 import { ThemeToggle } from "@/components/common/theme";
-import { houseConfig } from "@/config/site";
 
 export default function AuthLayout({
   children,
@@ -11,12 +8,7 @@ export default function AuthLayout({
     <div className="flex min-h-dvh flex-col bg-gradient-to-b from-accent/40 to-background">
 
       <div className="flex items-center justify-between px-4 py-4">
-        <Link href="/" className="flex items-center gap-2.5 font-semibold">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <BuildingIcon className="size-4" />
-          </span>
-          <span className="truncate text-sm">{houseConfig.name}</span>
-        </Link>
+        <BrandLockup labelClassName="text-sm" />
         <ThemeToggle />
       </div>
 

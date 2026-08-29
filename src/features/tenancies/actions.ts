@@ -56,6 +56,9 @@ export async function checkOut(
     endDate: formData.get("endDate"),
     endReason: formData.get("endReason"),
     terminated: formData.get("terminated") ?? undefined,
+    depositDeduction: formData.get("depositDeduction") ?? 0,
+    depositRefunded: formData.get("depositRefunded") ?? 0,
+    settlementNote: formData.get("settlementNote") ?? undefined,
   });
   if (!parsed.success) return invalid(parsed.error);
 
@@ -67,6 +70,9 @@ export async function checkOut(
       endDate: parsed.data.endDate,
       endReason: parsed.data.endReason,
       terminated: parsed.data.terminated,
+      depositDeduction: parsed.data.depositDeduction,
+      depositRefunded: parsed.data.depositRefunded,
+      settlementNote: parsed.data.settlementNote,
     });
   } catch (error) {
     return fail(describeError(error, "Không kết thúc được hợp đồng."));

@@ -23,6 +23,19 @@ export const houseConfig = {
    */
   shortName: "Tân Phát",
 
+  /**
+   * Múi giờ dùng để HIỂN THỊ mọi mốc thời gian.
+   *
+   * Cố định theo nhà trọ, không theo máy chủ. Vercel, Cloudflare và phần lớn
+   * container chạy UTC — thiếu chỗ này thì hoá đơn phát hành 09:00 hiện thành
+   * 02:00 và phiếu báo hỏng gửi tối nay hiện thành chiều nay. Local không thấy
+   * vì máy ở Việt Nam vốn đã UTC+7.
+   *
+   * Đổi chỉ khi nhà trọ thật sự ở múi giờ khác. Đây là tên IANA, không phải
+   * "+07:00" — tên IANA mới mang theo lịch sử đổi giờ.
+   */
+  timeZone: "Asia/Ho_Chi_Minh",
+
   /** Mô tả ngắn cho trang chủ và thẻ chia sẻ mạng xã hội. */
   tagline: "Phòng trọ sạch sẽ, an ninh, gần trung tâm",
   description:
@@ -99,14 +112,18 @@ export const houseConfig = {
 
   /**
    * Bật/tắt tính năng. Đặt `false` để ẩn hoàn toàn khỏi giao diện.
-   * `chat`, `gateCodes`, `invoices` chưa cài — để sẵn cho Phase sau.
+   *
+   * KHÔNG có `chat` — đã bỏ khỏi kế hoạch. Nhà trọ 10 phòng đã có Zalo và số điện
+   * thoại chủ trọ; một hộp chat trong app chỉ thêm một nơi nữa phải kiểm tra tin
+   * nhắn, và tin nhắn nào cần trả lời gấp thì người ta vẫn gọi điện.
+   *
+   * Mã mở cổng / vân tay KHÔNG phải cờ ở đây: nó không phải tính năng cho người
+   * thuê mà là ghi chép nội bộ, nằm ở /admin/tenants/<id> và chỉ chủ trọ xem được
+   * (bảng `gate_credentials`, RLS chỉ mở cho admin).
    */
   features: {
     publicLanding: true,
     publicRoomList: true,
-    chat: false,
-    gateCodes: false,
-    invoices: false,
   },
 
   /**

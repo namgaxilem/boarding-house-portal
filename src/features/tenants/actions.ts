@@ -14,7 +14,12 @@ import {
   type ActionResult,
 } from "@/lib/action-result";
 
-import { createTenantSchema, ownProfileSchema, tenantSchema } from "./schema";
+import {
+  createTenantSchema,
+  gateCredentialSchema,
+  ownProfileSchema,
+  tenantSchema,
+} from "./schema";
 
 function readTenantForm(formData: FormData) {
   return {
@@ -132,6 +137,47 @@ export async function resetTenantPassword(
   if (error) return fail("Không đặt lại được mật khẩu. Thử lại.");
 
   return ok("Đã đặt mật khẩu mới. Nhớ đưa lại cho người thuê và nhắc họ đổi.");
+}
+
+/**
+ * Lưu mã mở cổng / ngăn vân tay của một người thuê. CHỈ chủ trọ.
+ *
+ * Không có action tương ứng cho người thuê — cố ý. Họ không cần đọc mã của chính
+ * mình (họ bấm nó hàng ngày ở cổng), và bảng `gate_credentials` không có policy
+ * nào cho họ, nên kể cả POST thẳng vào đây cũng chỉ nhận về một hàng rỗng.
+ */
+export async function saveGateCredential(
+  tenantId: string,
+  _prev: ActionResult<string> | null,
+  formData: FormData,
+): Promise<ActionResult<string>> {
+  await requireAdmin();
+
+  const parsed = gateCredentialSchema.safeParse({
+    gateCode: formData.get("gateCode") ?? undefined,
+    fingerprintSlot: formData.get("fingerprintSlot") ?? undefined,
+    note: formData.get("note") ?? undefined,
+  });
+  if (!parsed.success) return invalid(parsed.error);
+
+  try {
+    await db.saveGateCredential(tenantId, parsed.data);
+  } catch (error) {
+    return fail(describeError(error, "Không lưu được mã cổng."));
+  }
+
+  revalidatePath(`/admin/tenants/${tenantId}`);
+  return ok("Đã lưu mã cổng / vân tay. Người thuê không xem được thông tin này.");
+}
+
+export async function clearGateCredential(formData: FormData): Promise<void> {
+  await requireAdmin();
+
+  const tenantId = String(formData.get("tenantId") ?? "");
+  if (!tenantId) return;
+
+  await db.deleteGateCredential(tenantId);
+  revalidatePath(`/admin/tenants/${tenantId}`);
 }
 
 /** A tenant editing their own details. Email and note stay admin-only. */

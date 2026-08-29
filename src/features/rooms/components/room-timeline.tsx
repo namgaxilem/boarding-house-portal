@@ -70,6 +70,20 @@ export function TenancyHistory({ tenancies }: { tenancies: TenancyDetail[] }) {
               {formatDuration(tenancy.startDate, tenancy.endDate)}
               {tenancy.endReason && ` · ${tenancy.endReason}`}
             </p>
+
+            {/* Kết toán cọc chỉ hiện khi có trừ. Hợp đồng hoàn đủ cọc là mặc
+                định, và một dòng "trừ 0đ" trên mọi hàng chỉ làm loãng những hàng
+                thật sự có chuyện. */}
+            {tenancy.endDate !== null && tenancy.depositDeduction > 0 && (
+              <p className="text-sm tabular-nums text-muted-foreground">
+                Cọc {formatVND(tenancy.deposit)} · trừ{" "}
+                <span className="text-destructive">
+                  {formatVND(tenancy.depositDeduction)}
+                </span>{" "}
+                · hoàn {formatVND(tenancy.depositRefunded)}
+                {tenancy.settlementNote && ` — ${tenancy.settlementNote}`}
+              </p>
+            )}
           </div>
 
           <p className="shrink-0 text-sm tabular-nums text-muted-foreground">

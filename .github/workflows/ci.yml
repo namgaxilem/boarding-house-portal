@@ -1,0 +1,52 @@
+name: CI
+
+# Giữ cho nhánh chính luôn build được.
+#
+# Không có job này thì lint/typecheck/test chỉ chạy khi ai đó nhớ chạy tay, và
+# "nhớ chạy tay" là thứ hỏng đúng vào tuần bận nhất.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  # Push liên tiếp lên cùng một nhánh thì chỉ chạy lần cuối.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    env:
+      # `next build` phải chạy được trên máy KHÔNG có .env.local — app kiểm cấu
+      # hình lúc gọi chứ không lúc nạp module (xem lib/env.ts). Vẫn đặt hai biến
+      # NEXT_PUBLIC_* giả để next.config.ts dựng được remotePattern cho ảnh.
+      NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      # `npm ci` chứ không `npm install`: cài đúng cây trong package-lock.json,
+      # nên CI xanh không có nghĩa là "xanh với một bộ phiên bản khác".
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      # Build cuối cùng: nó chậm nhất, và ba bước trên bắt phần lớn lỗi rẻ hơn.
+      - name: Build
+        run: npm run build

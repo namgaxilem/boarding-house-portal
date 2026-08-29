@@ -1,7 +1,7 @@
 import { Link } from "@/components/common/link";
-import { BuildingIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { BrandLockup } from "@/components/common/logo";
 import { ThemeToggle } from "@/components/common/theme";
 import { houseConfig, fullAddress } from "@/config/site";
 
@@ -13,12 +13,7 @@ export default function MarketingLayout({
 
       <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-3 px-4">
-          <Link href="/" className="flex min-w-0 items-center gap-2.5">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <BuildingIcon className="size-4" />
-            </span>
-            <span className="truncate font-semibold">{houseConfig.name}</span>
-          </Link>
+          <BrandLockup />
 
           <div className="flex shrink-0 items-center gap-1">
             <Button variant="ghost" asChild className="hidden sm:inline-flex">

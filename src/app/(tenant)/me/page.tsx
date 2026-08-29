@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Link } from "@/components/common/link";
-import { ChevronRightIcon, DoorOpenIcon, WifiIcon } from "lucide-react";
+import { ChevronRightIcon, DoorOpenIcon, ReceiptTextIcon, WifiIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,7 +10,8 @@ import { InstallPrompt } from "@/components/common/install-prompt";
 import { NoRoomNotice } from "@/components/common/no-room-notice";
 import { TENANT_SECONDARY } from "@/components/layout/nav-items";
 import { getMyTenancy, getMyWifi } from "@/features/tenants/queries";
-import { formatDate, formatDuration, formatVND } from "@/lib/format";
+import { getMyUnpaidInvoices } from "@/features/invoices/queries";
+import { formatDate, formatDuration, formatMonthYear, formatVND } from "@/lib/format";
 import { houseConfig } from "@/config/site";
 
 export const metadata: Metadata = { title: "Trang chủ" };
@@ -42,6 +43,51 @@ function HomeSkeleton() {
         <Skeleton key={index} className="h-[72px] w-full rounded-xl" />
       ))}
     </div>
+  );
+}
+
+/**
+ * Hoá đơn chưa đóng, hiện ngay đầu trang chủ.
+ *
+ * Nằm cùng cây với TenantHome nên cũng stream trong <Suspense> của trang; không
+ * có gì thì component trả về null và trang trông như trước.
+ */
+async function UnpaidInvoiceNotice() {
+  const unpaid = await getMyUnpaidInvoices();
+  if (unpaid.length === 0) return null;
+
+  const total = unpaid.reduce((sum, invoice) => sum + invoice.total, 0);
+  const soonest = unpaid.reduce(
+    (earliest, invoice) =>
+      invoice.dueDate && (!earliest || invoice.dueDate < earliest) ? invoice.dueDate : earliest,
+    null as string | null,
+  );
+
+  return (
+    <Link href="/me/invoices" className="block rounded-xl">
+      <Card className="border-warning/30 bg-warning/10 transition-colors hover:border-warning/50">
+        <CardContent className="flex items-center gap-3 p-4">
+          <span
+            aria-hidden
+            className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-warning/20 text-warning-foreground dark:text-warning"
+          >
+            <ReceiptTextIcon className="size-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">
+              {unpaid.length === 1
+                ? `Hoá đơn tháng ${formatMonthYear(unpaid[0].period)} chưa đóng`
+                : `${unpaid.length} hoá đơn chưa đóng`}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {formatVND(total)}
+              {soonest ? ` · hạn ${formatDate(soonest)}` : ""}
+            </p>
+          </div>
+          <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
+        </CardContent>
+      </Card>
+    </Link>
   );
 }
 
@@ -83,6 +129,8 @@ async function TenantHome() {
         </CardContent>
       </Card>
 
+      <UnpaidInvoiceNotice />
+
       {primaryWifi && (
         <Link href="/me/wifi" className="block rounded-xl">
           <Card className="transition-colors hover:border-primary/40 hover:bg-accent/30">
@@ -123,7 +171,11 @@ async function TenantHome() {
         </Card>
       </Link>
 
-      {TENANT_SECONDARY.map((item) => (
+      {/* Thẻ wifi phía trên đã dẫn tới /me/wifi kèm tên mạng — bỏ mục trùng ở
+          danh sách dưới để không có hai lối vào giống nhau cạnh nhau. */}
+      {TENANT_SECONDARY.filter(
+        (item) => !(primaryWifi && item.href === "/me/wifi"),
+      ).map((item) => (
         <Link key={item.href} href={item.href} className="block rounded-xl">
           <Card className="transition-colors hover:border-primary/40 hover:bg-accent/30">
             <CardContent className="flex items-center gap-3 p-4">

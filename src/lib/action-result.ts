@@ -77,6 +77,38 @@ export function describeError(error: unknown, fallback: string): string {
     ID_DOCUMENT_NOT_FOUND: "Không tìm thấy hồ sơ giấy tờ này.",
     ID_DOCUMENT_ALREADY_REVIEWED: "Hồ sơ này đã được xử lý rồi. Tải lại trang để xem.",
     ID_DOCUMENT_NO_NUMBER: "Hồ sơ thiếu số CCCD nên không duyệt được.",
+
+    DUPLICATE_INVOICE: "Phòng này đã có hoá đơn cho tháng đó. Sửa hoá đơn cũ hoặc huỷ nó trước.",
+    DUPLICATE_METER_READING: "Phòng này đã có chỉ số của tháng đó.",
+    METER_READING_BACKWARDS:
+      "Chỉ số cuối kỳ nhỏ hơn đầu kỳ. Đồng hồ không chạy lùi — kiểm tra lại số vừa gõ.",
+    INVOICE_NOT_FOUND: "Không tìm thấy hoá đơn.",
+    INVOICE_OTHER_NEEDS_NOTE: "Có khoản phát sinh thì phải ghi lý do.",
+    INVOICE_NO_TENANT: "Phòng đang trống nên chưa lập được hoá đơn. Xếp người vào phòng trước.",
+    INVOICE_NO_READING:
+      "Chưa có chỉ số điện nước của tháng này. Ghi chỉ số trước rồi lập hoá đơn.",
+    INVOICE_NOT_DRAFT: "Hoá đơn đã phát hành. Huỷ hoá đơn nếu cần lập lại.",
+    INVOICE_ALREADY_PAID: "Hoá đơn này đã được ghi nhận đã thu.",
+    INVOICE_VOID: "Hoá đơn đã huỷ, không đổi được nữa.",
+
+    PAYMENT_ACCOUNT_NOT_FOUND: "Không tìm thấy cách nhận tiền này.",
+    PAYMENT_QR_UPLOAD_FORBIDDEN:
+      "Không có quyền tải ảnh QR lên. Đăng nhập lại bằng tài khoản chủ trọ.",
+    PAYMENT_QR_REQUIRED: "Chọn ảnh QR để tải lên.",
+
+    MAINTENANCE_NOT_FOUND: "Không tìm thấy phiếu báo hỏng này.",
+    MAINTENANCE_FORBIDDEN: "Bạn chỉ sửa hoặc đóng được phiếu do chính mình gửi.",
+    MAINTENANCE_LOCKED:
+      "Chủ trọ đã bắt đầu xử lý phiếu này nên không sửa được nữa. Gửi phiếu mới nếu có thêm thông tin.",
+    MAINTENANCE_ALREADY_CLOSED: "Phiếu này đã đóng rồi. Tải lại trang để xem.",
+    MAINTENANCE_PHOTO_FORBIDDEN:
+      "Không có quyền thêm hoặc xoá ảnh ở phiếu này. Phiếu đã đóng, hoặc ảnh do người khác tải lên.",
+    MAINTENANCE_NO_ROOM:
+      "Bạn chưa được xếp vào phòng nào nên chưa gửi báo hỏng được. Liên hệ chủ trọ.",
+
+    DEDUCTION_OVER_DEPOSIT:
+      "Số trừ vào cọc lớn hơn số cọc đang giữ. Phần người thuê còn nợ vượt quá tiền cọc thì lập một hoá đơn riêng.",
+    DEDUCTION_NEEDS_NOTE: "Có trừ vào cọc thì phải ghi lý do.",
   };
 
   return messages[code] ?? fallback;

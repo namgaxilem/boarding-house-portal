@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { FileCode2Icon } from "lucide-react";
 
+import { Link } from "@/components/common/link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -90,7 +91,7 @@ export default function HouseSettingsPage() {
           <CardHeader>
             <CardTitle>Chuyển khoản</CardTitle>
           </CardHeader>
-          <CardContent className="pt-4">
+          <CardContent className="space-y-3 pt-4">
             {bank ? (
               <Rows
                 items={[
@@ -102,9 +103,25 @@ export default function HouseSettingsPage() {
               />
             ) : (
               <p className="text-sm text-muted-foreground">
-                Chưa cấu hình — người thuê chỉ thấy hướng dẫn trả tiền mặt.
+                Chưa cấu hình trong file.
               </p>
             )}
+
+            {/* Tài khoản trong file giờ chỉ còn hai vai: trang giới thiệu công khai
+                (khách chưa đăng nhập không có quyền đọc bảng payment_accounts), và
+                đường lui khi chủ trọ chưa thêm thẻ nào. */}
+            <p className="border-t border-border pt-3 text-sm text-muted-foreground">
+              Tài khoản trên chỉ dùng cho trang giới thiệu công khai, và làm đường lui
+              khi tab{" "}
+              <Link
+                href="/admin/settings/payments"
+                className="font-medium text-foreground underline underline-offset-4"
+              >
+                Nhận tiền
+              </Link>{" "}
+              chưa có thẻ nào. Thêm số tài khoản hoặc ảnh QR ở tab đó thì hoá đơn dùng
+              thẻ đó, và đổi được ngay không cần deploy.
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -146,9 +163,6 @@ export default function HouseSettingsPage() {
 const FEATURE_LABEL: Record<string, string> = {
   publicLanding: "Trang giới thiệu",
   publicRoomList: "Công khai phòng trống",
-  chat: "Chat",
-  gateCodes: "Mã mở cổng",
-  invoices: "Hoá đơn",
 };
 
 function Rows({ items }: { items: [string, string][] }) {

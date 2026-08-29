@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import { DropletIcon, ZapIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,9 +9,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { NoRoomNotice } from "@/components/common/no-room-notice";
 import { PhotoGallery } from "@/features/rooms/components/photo-gallery";
 import { getMyTenancy } from "@/features/tenants/queries";
+import { listReadingsForRoom } from "@/features/meters/queries";
 import { requireUser } from "@/lib/auth/dal";
 import { db } from "@/lib/db";
-import { formatDate, formatDuration, formatVND, initials } from "@/lib/format";
+import {
+  formatDate,
+  formatDuration,
+  formatMonthYear,
+  formatNumber,
+  formatVND,
+  initials,
+} from "@/lib/format";
+import { electricUsed, waterUsed } from "@/lib/period";
 
 export const metadata: Metadata = { title: "Phòng của tôi" };
 
@@ -41,9 +51,12 @@ async function RoomDetail() {
 
   if (!tenancy) return <NoRoomNotice />;
 
-  const [roommates, photos] = await Promise.all([
+  const [roommates, photos, readings] = await Promise.all([
     db.listMyRoommates(user.id),
     db.listRoomPhotos(tenancy.roomId),
+    // Người thuê đọc được chỉ số của chính phòng mình (policy
+    // `meter_readings_select`) — để họ tự đối chiếu với đồng hồ ngoài hành lang.
+    listReadingsForRoom(tenancy.roomId, 6),
   ]);
 
   return (
@@ -112,6 +125,42 @@ async function RoomDetail() {
           </p>
         </CardContent>
       </Card>
+
+      {readings.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Chỉ số điện nước</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <ul className="space-y-3 text-sm">
+              {readings.map((reading) => (
+                <li
+                  key={reading.id}
+                  className="flex items-center justify-between gap-3 border-b border-border/60 pb-3 last:border-0 last:pb-0"
+                >
+                  <span className="font-medium tabular-nums">
+                    {formatMonthYear(reading.period)}
+                  </span>
+                  <span className="flex items-center gap-3 text-muted-foreground tabular-nums">
+                    <span className="flex items-center gap-1">
+                      <ZapIcon className="size-3.5" aria-hidden />
+                      {formatNumber(electricUsed(reading))} kWh
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <DropletIcon className="size-3.5" aria-hidden />
+                      {formatNumber(waterUsed(reading))} m³
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-4 text-xs text-muted-foreground">
+              Số ghi ở cột trên là lượng đã dùng trong tháng. Thấy lệch so với đồng hồ thì
+              nhắn cho chủ trọ để đọc lại.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {tenancy.room.description && (
         <Card>

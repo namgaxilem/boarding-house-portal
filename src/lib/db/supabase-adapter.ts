@@ -5,13 +5,35 @@ import type { PostgrestError } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
+import { todayInHouseTz } from "@/lib/format";
+import { lineAmount } from "@/lib/period";
 import type {
   AdminStats,
+  AdminTodo,
+  AppNotification,
+  GateCredential,
   IdDocStatus,
   IdDocument,
   IdDocumentPhotos,
   IdDocumentWithTenant,
+  Invoice,
+  InvoiceDetail,
+  InvoiceStatus,
+  MaintenancePhoto,
+  MaintenancePriority,
+  MaintenanceRequest,
+  MaintenanceRequestDetail,
+  MaintenanceStatus,
+  MeterReading,
+  MeterReadingWithRoom,
+  NotificationType,
+  PaymentAccount,
+  PaymentAccountKind,
+  PaymentMethod,
   Profile,
+  RevenueByRoom,
+  RevenuePeriod,
+  RevenueReport,
   Room,
   RoomEvent,
   RoomPhoto,
@@ -26,7 +48,15 @@ import type {
 
 import type {
   EndTenancyInput,
+  GateCredentialInput,
   IdDocumentInput,
+  InvoiceFilter,
+  InvoiceInput,
+  MaintenanceFilter,
+  MaintenanceInput,
+  MeterReadingInput,
+  NotificationInput,
+  PaymentAccountInput,
   RecentEvent,
   Repository,
   RoomEventInput,
@@ -82,6 +112,9 @@ interface TenancyRow {
   monthly_price: number | string;
   status: Tenancy["status"];
   end_reason: string | null;
+  deposit_deduction: number | string;
+  deposit_refunded: number | string;
+  settlement_note: string | null;
   created_at: string;
 }
 
@@ -133,6 +166,116 @@ interface WifiRow {
   room_id: string | null;
   floor: number | null;
   note: string | null;
+}
+
+interface MeterReadingRow {
+  id: string;
+  room_id: string;
+  period: string;
+  electric_start: number | string;
+  electric_end: number | string;
+  water_start: number | string;
+  water_end: number | string;
+  note: string | null;
+  recorded_at: string;
+  recorded_by: string | null;
+}
+
+interface InvoiceRow {
+  id: string;
+  room_id: string;
+  tenant_id: string;
+  tenancy_id: string | null;
+  reading_id: string | null;
+  period: string;
+  rent: number | string;
+  electric_kwh: number | string;
+  electric_price: number | string;
+  electric_amount: number | string;
+  water_m3: number | string;
+  water_price: number | string;
+  water_amount: number | string;
+  service_amount: number | string;
+  other_amount: number | string;
+  other_note: string | null;
+  discount: number | string;
+  total: number | string;
+  status: InvoiceStatus;
+  due_date: string | null;
+  note: string | null;
+  created_at: string;
+  created_by: string | null;
+  issued_at: string | null;
+  paid_at: string | null;
+  paid_method: PaymentMethod | null;
+}
+
+/** Người thuê nhúng kèm hoá đơn — đúng bốn cột cần để hiện và để gửi email. */
+interface InvoiceTenantRow {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string | null;
+}
+
+interface NotificationRow {
+  id: string;
+  user_id: string;
+  type: NotificationType;
+  title: string;
+  body: string | null;
+  link: string | null;
+  invoice_id: string | null;
+  read_at: string | null;
+  email_sent_at: string | null;
+  created_at: string;
+}
+
+interface GateCredentialRow {
+  profile_id: string;
+  gate_code: string | null;
+  fingerprint_slot: string | null;
+  note: string | null;
+  updated_at: string;
+  updated_by: string | null;
+}
+
+interface PaymentAccountRow {
+  id: string;
+  kind: PaymentAccountKind;
+  label: string;
+  bank_name: string | null;
+  account_number: string | null;
+  account_holder: string | null;
+  qr_path: string | null;
+  note: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+interface MaintenancePhotoRow {
+  id: string;
+  request_id: string;
+  storage_path: string;
+  uploaded_by: string | null;
+  created_at: string;
+}
+
+interface MaintenanceRow {
+  id: string;
+  room_id: string;
+  reported_by: string | null;
+  title: string;
+  description: string | null;
+  priority: MaintenancePriority;
+  status: MaintenanceStatus;
+  resolution_note: string | null;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string | null;
+  closed_at: string | null;
+  closed_by: string | null;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -191,6 +334,9 @@ function toTenancy(row: TenancyRow): Tenancy {
     monthlyPrice: num(row.monthly_price),
     status: row.status,
     endReason: row.end_reason,
+    depositDeduction: num(row.deposit_deduction),
+    depositRefunded: num(row.deposit_refunded),
+    settlementNote: row.settlement_note,
     createdAt: row.created_at,
   };
 }
@@ -207,6 +353,34 @@ function toRoomEvent(row: RoomEventRow): RoomEvent {
     createdBy: row.created_by,
   };
 }
+
+/**
+ * Bucket ảnh QR nhận tiền. Public như `room-photos`, KHÔNG private như
+ * `id-photos`: mã QR là thứ chủ trọ muốn càng nhiều người quét càng tốt, và nó
+ * chỉ mã hoá đúng số tài khoản vốn đã in trên mọi hoá đơn.
+ */
+export const PAYMENT_QR_BUCKET = "payment-qr";
+
+/**
+ * Ảnh đính kèm phiếu báo hỏng. RIÊNG TƯ.
+ *
+ * Khác `room-photos` (quảng cáo) và `payment-qr` (càng nhiều người quét càng
+ * tốt): đây là ảnh chụp trong phòng người ta ở — cái bồn rửa, góc bếp, đôi khi
+ * cả đồ đạc cá nhân lọt vào khung hình. Chỉ mở được bằng URL ký hạn ngắn.
+ *
+ * Không có hàm dựng URL công khai ở đây, và cũng đừng thêm.
+ */
+export const MAINTENANCE_PHOTO_BUCKET = "maintenance-photos";
+
+/**
+ * Hạn URL ký cho ảnh báo hỏng — 10 phút.
+ *
+ * Rộng hơn 2 phút của ảnh CCCD, cố ý: một phiếu có thể có nhiều ảnh và chủ trọ
+ * mở ra xem kỹ, phóng to, so với ảnh khác. Vẫn ngắn hơn nhiều so với "chia sẻ
+ * link cho người ngoài xem" — mức nhạy cảm ở đây là ảnh cái vòi nước, không
+ * phải giấy tờ tuỳ thân.
+ */
+const MAINTENANCE_PHOTO_URL_TTL_SECONDS = 600;
 
 export const ROOM_PHOTO_BUCKET = "room-photos";
 
@@ -227,6 +401,59 @@ function toRoomPhoto(row: RoomPhotoRow): RoomPhoto {
     caption: row.caption,
     sortOrder: row.sort_order,
     createdAt: row.created_at,
+  };
+}
+
+function publicQrUrl(storagePath: string) {
+  return `${env.supabaseUrl}/storage/v1/object/public/${PAYMENT_QR_BUCKET}/${storagePath}`;
+}
+
+function toPaymentAccount(row: PaymentAccountRow): PaymentAccount {
+  return {
+    id: row.id,
+    kind: row.kind,
+    label: row.label,
+    bankName: row.bank_name,
+    accountNumber: row.account_number,
+    accountHolder: row.account_holder,
+    qrPath: row.qr_path,
+    qrUrl: row.qr_path ? publicQrUrl(row.qr_path) : null,
+    note: row.note,
+    isActive: row.is_active,
+    sortOrder: row.sort_order,
+    createdAt: row.created_at,
+  };
+}
+
+function toMaintenancePhoto(
+  row: MaintenancePhotoRow,
+  url: string | null,
+): MaintenancePhoto {
+  return {
+    id: row.id,
+    requestId: row.request_id,
+    storagePath: row.storage_path,
+    url,
+    uploadedBy: row.uploaded_by,
+    createdAt: row.created_at,
+  };
+}
+
+function toMaintenanceRequest(row: MaintenanceRow): MaintenanceRequest {
+  return {
+    id: row.id,
+    roomId: row.room_id,
+    reportedBy: row.reported_by,
+    title: row.title,
+    description: row.description,
+    priority: row.priority,
+    status: row.status,
+    resolutionNote: row.resolution_note,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    resolvedAt: row.resolved_at,
+    closedAt: row.closed_at,
+    closedBy: row.closed_by,
   };
 }
 
@@ -274,6 +501,78 @@ function toWifi(row: WifiRow): WifiNetwork {
   };
 }
 
+function toMeterReading(row: MeterReadingRow): MeterReading {
+  return {
+    id: row.id,
+    roomId: row.room_id,
+    period: row.period,
+    electricStart: num(row.electric_start),
+    electricEnd: num(row.electric_end),
+    waterStart: num(row.water_start),
+    waterEnd: num(row.water_end),
+    note: row.note,
+    recordedAt: row.recorded_at,
+    recordedBy: row.recorded_by,
+  };
+}
+
+function toInvoice(row: InvoiceRow): Invoice {
+  return {
+    id: row.id,
+    roomId: row.room_id,
+    tenantId: row.tenant_id,
+    tenancyId: row.tenancy_id,
+    readingId: row.reading_id,
+    period: row.period,
+    rent: num(row.rent),
+    electricKwh: num(row.electric_kwh),
+    electricPrice: num(row.electric_price),
+    electricAmount: num(row.electric_amount),
+    waterM3: num(row.water_m3),
+    waterPrice: num(row.water_price),
+    waterAmount: num(row.water_amount),
+    serviceAmount: num(row.service_amount),
+    otherAmount: num(row.other_amount),
+    otherNote: row.other_note,
+    discount: num(row.discount),
+    total: num(row.total),
+    status: row.status,
+    dueDate: row.due_date,
+    note: row.note,
+    createdAt: row.created_at,
+    createdBy: row.created_by,
+    issuedAt: row.issued_at,
+    paidAt: row.paid_at,
+    paidMethod: row.paid_method,
+  };
+}
+
+function toNotification(row: NotificationRow): AppNotification {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    type: row.type,
+    title: row.title,
+    body: row.body,
+    link: row.link,
+    invoiceId: row.invoice_id,
+    readAt: row.read_at,
+    emailSentAt: row.email_sent_at,
+    createdAt: row.created_at,
+  };
+}
+
+function toGateCredential(row: GateCredentialRow): GateCredential {
+  return {
+    profileId: row.profile_id,
+    gateCode: row.gate_code,
+    fingerprintSlot: row.fingerprint_slot,
+    note: row.note,
+    updatedAt: row.updated_at,
+    updatedBy: row.updated_by,
+  };
+}
+
 function roomToRow(input: RoomInput) {
   return {
     code: input.code,
@@ -300,6 +599,120 @@ function wifiToRow(input: WifiInput) {
   };
 }
 
+function meterReadingToRow(input: MeterReadingInput) {
+  return {
+    room_id: input.roomId,
+    period: input.period,
+    electric_start: input.electricStart,
+    electric_end: input.electricEnd,
+    water_start: input.waterStart,
+    water_end: input.waterEnd,
+    note: input.note,
+  };
+}
+
+/**
+ * Tiền của từng khoản được tính TẠI ĐÂY, không nhận từ form.
+ *
+ * Form gửi lên số lượng và đơn giá; nếu tin luôn số tiền do client gửi thì một
+ * request tự tay có thể ghi "300 kWh × 3.800 đ = 5 đồng". Tổng tiền thì thậm chí
+ * không có trong INSERT — `invoices.total` là cột sinh trong database.
+ */
+function invoiceToRow(input: InvoiceInput) {
+  return {
+    room_id: input.roomId,
+    tenant_id: input.tenantId,
+    tenancy_id: input.tenancyId,
+    reading_id: input.readingId,
+    period: input.period,
+    rent: input.rent,
+    electric_kwh: input.electricKwh,
+    electric_price: input.electricPrice,
+    electric_amount: lineAmount(input.electricKwh, input.electricPrice),
+    water_m3: input.waterM3,
+    water_price: input.waterPrice,
+    water_amount: lineAmount(input.waterM3, input.waterPrice),
+    service_amount: input.serviceAmount,
+    other_amount: input.otherAmount,
+    other_note: input.otherAmount > 0 ? input.otherNote : null,
+    discount: input.discount,
+    due_date: input.dueDate,
+    note: input.note,
+  };
+}
+
+/** Cột select dùng chung cho mọi truy vấn hoá đơn cần hiện phòng + người thuê. */
+const INVOICE_SELECT =
+  "*, rooms(*), profiles!invoices_tenant_id_fkey(id, full_name, email, phone)";
+
+function mapInvoiceDetails(rows: unknown): InvoiceDetail[] {
+  const typed = (rows ?? []) as (InvoiceRow & {
+    rooms: RoomRow | null;
+    profiles: InvoiceTenantRow | null;
+  })[];
+
+  return typed
+    .filter((row) => row.rooms !== null && row.profiles !== null)
+    .map<InvoiceDetail>((row) => ({
+      ...toInvoice(row),
+      room: toRoom(row.rooms!),
+      tenant: {
+        id: row.profiles!.id,
+        fullName: row.profiles!.full_name,
+        email: row.profiles!.email,
+        phone: row.profiles!.phone,
+      },
+    }));
+}
+
+/**
+ * Người báo hỏng lấy đúng hai cột.
+ *
+ * Không `profiles(*)`: RLS đã cho người thuê đọc dòng phiếu của phòng mình, và
+ * một join rộng sẽ kéo theo số điện thoại lẫn ghi chú riêng của chủ trọ về người
+ * ở cùng phòng — cùng cái bẫy mà `my_roommates()` được viết ra để tránh.
+ */
+const MAINTENANCE_SELECT =
+  "*, rooms(*), profiles!maintenance_requests_reported_by_fkey(id, full_name)";
+
+function mapMaintenanceDetails(rows: unknown): MaintenanceRequestDetail[] {
+  const typed = (rows ?? []) as (MaintenanceRow & {
+    rooms: RoomRow | null;
+    profiles: { id: string; full_name: string } | null;
+  })[];
+
+  return typed
+    .filter((row) => row.rooms !== null)
+    .map<MaintenanceRequestDetail>((row) => ({
+      ...toMaintenanceRequest(row),
+      room: toRoom(row.rooms!),
+      reporter: row.profiles
+        ? { id: row.profiles.id, fullName: row.profiles.full_name }
+        : null,
+    }));
+}
+
+/** Kỳ kế tiếp, thuần chuỗi — dựng khung tháng cho báo cáo mà không đụng Date. */
+function nextPeriodString(period: string): string {
+  const year = Number(period.slice(0, 4));
+  const month = Number(period.slice(5, 7));
+  return month === 12
+    ? `${year + 1}-01-01`
+    : `${year}-${String(month + 1).padStart(2, "0")}-01`;
+}
+
+/** Dòng mới xuống cuối danh sách, không tự cướp chỗ cách nhận tiền đang ưu tiên. */
+async function nextPaymentSortOrder(): Promise<number> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("payment_accounts")
+    .select("sort_order")
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return ((data?.sort_order as number | undefined) ?? -1) + 1;
+}
+
 /**
  * Translate Postgres errors into the codes the Server Actions already handle,
  * so the same user-facing message appears in demo mode and Supabase mode.
@@ -319,11 +732,34 @@ function rethrow(error: PostgrestError | null, fallback: string): never {
     if (error.message.includes("id_number")) throw new Error("DUPLICATE_ID_NUMBER");
     if (error.message.includes("phone")) throw new Error("DUPLICATE_PHONE");
   }
+  if (error?.code === "23505") {
+    if (error.message.includes("invoices_room_period")) {
+      throw new Error("DUPLICATE_INVOICE");
+    }
+    if (error.message.includes("meter_readings_room_period")) {
+      throw new Error("DUPLICATE_METER_READING");
+    }
+  }
   if (error?.code === "23514") {
     if (error.message.includes("id_number_format")) throw new Error("INVALID_ID_NUMBER");
     if (error.message.includes("phone_format")) throw new Error("INVALID_PHONE");
+    if (error.message.includes("electric_forward") || error.message.includes("water_forward")) {
+      throw new Error("METER_READING_BACKWARDS");
+    }
+    if (error.message.includes("other_needs_note")) throw new Error("INVOICE_OTHER_NEEDS_NOTE");
+    if (error.message.includes("deduction_within_deposit")) {
+      throw new Error("DEDUCTION_OVER_DEPOSIT");
+    }
+    if (error.message.includes("deduction_needs_note")) throw new Error("DEDUCTION_NEEDS_NOTE");
   }
   if (error?.code === "23503") throw new Error("ROOM_NOT_FOUND");
+
+  // Lỗi do `raise exception` trong SQL function (close_maintenance_request,
+  // update_my_maintenance_request). PostgREST gói nguyên chuỗi vào `message`,
+  // và các mã đó đã là mã app dùng — ném thẳng ra để describeError() dịch.
+  const raised = error?.message?.match(/\b(MAINTENANCE_[A-Z_]+)\b/);
+  if (raised) throw new Error(raised[1]);
+
   throw new Error(error?.message ?? fallback);
 }
 
@@ -1110,6 +1546,70 @@ export const supabaseAdapter: Repository = {
     return toProfile(data as ProfileRow);
   },
 
+  async updateOwnAccount(id, input) {
+    const supabase = createAdminClient();
+
+    const { data: current, error: readError } = await supabase
+      .from("profiles")
+      .select("email")
+      .eq("id", id)
+      .maybeSingle();
+    if (readError) rethrow(readError, "Không đọc được tài khoản");
+    if (!current) throw new Error("TENANT_NOT_FOUND");
+
+    const emailChanged = (current.email as string) !== input.email;
+
+    // `auth.users` TRƯỚC, `profiles` sau.
+    //
+    // Thứ tự này quan trọng: email trùng bị chặn ở `auth.users` (Supabase Auth
+    // giữ ràng buộc riêng của nó). Ghi `profiles` trước rồi mới vỡ ở auth là
+    // hồ sơ mang email mới còn đăng nhập vẫn bằng email cũ — trạng thái không ai
+    // phát hiện ra cho tới lần đăng nhập sau.
+    if (emailChanged) {
+      // Hỏi TRƯỚC xem email đã có ai dùng chưa, thay vì đoán từ thông báo lỗi.
+      //
+      // GoTrue trả lỗi trùng email của `updateUserById` với message RỖNG (`{}`,
+      // status 500) — không có chữ nào để so khớp. Bắt lỗi kiểu đó là người dùng
+      // nhận về "Không cập nhật được tài khoản", đúng nhưng vô dụng: họ không
+      // biết phải sửa gì.
+      //
+      // Có kẽ hở lý thuyết giữa lúc hỏi và lúc ghi, nhưng ràng buộc unique ở
+      // database vẫn chặn — kẽ hở đó chỉ làm thông báo xấu đi, không làm sai dữ
+      // liệu. Nhà trọ mười phòng với một tài khoản chủ trọ thì nó không xảy ra.
+      const { data: taken } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("email", input.email)
+        .maybeSingle();
+      if (taken && (taken.id as string) !== id) throw new Error("DUPLICATE_EMAIL");
+
+      // `email_confirm: true` là bắt buộc. Thiếu nó, Supabase giữ email mới ở
+      // cột `new_email` chờ người dùng bấm link xác minh, và tài khoản vẫn đăng
+      // nhập bằng email cũ — lệnh chạy xong mà thực ra chưa đổi gì.
+      const { error: authError } = await supabase.auth.admin.updateUserById(id, {
+        email: input.email,
+        email_confirm: true,
+      });
+      if (authError) {
+        if (authError.message?.toLowerCase().includes("already")) {
+          throw new Error("DUPLICATE_EMAIL");
+        }
+        // `|| ...`: message rỗng thì đừng ném ra chuỗi rỗng cho người dùng đọc.
+        throw new Error(authError.message || "Không đổi được email đăng nhập.");
+      }
+    }
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .update({ full_name: input.fullName, email: input.email })
+      .eq("id", id)
+      .select("*")
+      .single();
+    if (error) rethrow(error, "Không cập nhật được tài khoản");
+
+    return toProfile(data as ProfileRow);
+  },
+
   /* ------------------------------------------------------------ tenancies */
 
   async listTenanciesByRoom(roomId) {
@@ -1202,21 +1702,39 @@ export const supabaseAdapter: Repository = {
     if (tenancy.endDate !== null) throw new Error("TENANCY_ALREADY_ENDED");
     if (input.endDate < tenancy.startDate) throw new Error("END_BEFORE_START");
 
+    if (input.depositDeduction > tenancy.deposit) throw new Error("DEDUCTION_OVER_DEPOSIT");
+    if (input.depositDeduction > 0 && !input.settlementNote) {
+      throw new Error("DEDUCTION_NEEDS_NOTE");
+    }
+
     const { error } = await supabase
       .from("tenancies")
       .update({
         end_date: input.endDate,
         end_reason: input.endReason,
         status: input.terminated ? "terminated" : "ended",
+        deposit_deduction: input.depositDeduction,
+        deposit_refunded: input.depositRefunded,
+        settlement_note: input.settlementNote,
       })
       .eq("id", id);
     if (error) rethrow(error, "Không kết thúc được hợp đồng");
+
+    // Kết toán cọc đi vào nhật ký phòng luôn. Ba tháng sau, câu hỏi "sao phòng
+    // này chỉ hoàn 1.5 triệu" được trả lời ở chỗ người ta tìm — trang phòng —
+    // chứ không phải trong một hợp đồng đã đóng.
+    const settlement =
+      input.depositDeduction > 0
+        ? ` Trừ cọc ${input.depositDeduction.toLocaleString("vi-VN")}đ, hoàn ${input.depositRefunded.toLocaleString("vi-VN")}đ.`
+        : ` Hoàn đủ cọc ${input.depositRefunded.toLocaleString("vi-VN")}đ.`;
 
     await supabase.from("room_events").insert({
       room_id: tenancy.roomId,
       type: "checkout",
       title: `${tenancy.tenant.fullName} trả phòng`,
-      content: input.endReason,
+      content: [input.endReason + settlement, input.settlementNote]
+        .filter(Boolean)
+        .join(" — "),
       occurred_at: new Date(input.endDate).toISOString(),
     });
   },
@@ -1350,13 +1868,974 @@ export const supabaseAdapter: Repository = {
     if (error) rethrow(error, "Không xoá được wifi");
   },
 
+  /* ------------------------------------------------- chỉ số điện nước */
+
+  async listMeterReadings(period) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("meter_readings")
+      .select("*, rooms(*)")
+      .eq("period", period);
+    if (error) rethrow(error, "Không đọc được chỉ số điện nước");
+
+    return ((data ?? []) as (MeterReadingRow & { rooms: RoomRow | null })[])
+      .filter((row) => row.rooms !== null)
+      .map<MeterReadingWithRoom>((row) => ({
+        ...toMeterReading(row),
+        room: toRoom(row.rooms!),
+      }))
+      .sort((a, b) => a.room.code.localeCompare(b.room.code));
+  },
+
+  async listMeterReadingsForRoom(roomId, limit = 12) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("meter_readings")
+      .select("*")
+      .eq("room_id", roomId)
+      .order("period", { ascending: false })
+      .limit(limit);
+    if (error) rethrow(error, "Không đọc được lịch sử chỉ số của phòng");
+    return (data as MeterReadingRow[]).map(toMeterReading);
+  },
+
+  async getMeterReading(roomId, period) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("meter_readings")
+      .select("*")
+      .eq("room_id", roomId)
+      .eq("period", period)
+      .maybeSingle();
+    if (error) rethrow(error, "Không đọc được chỉ số của phòng");
+    return data ? toMeterReading(data as MeterReadingRow) : null;
+  },
+
+  async getPreviousMeterReading(roomId, period) {
+    const supabase = await createClient();
+    // `lt` chứ không phải "tháng liền trước": tháng nào chủ trọ quên ghi thì số
+    // đầu kỳ vẫn phải nối tiếp lần ghi cuối cùng, không tụt về 0.
+    const { data, error } = await supabase
+      .from("meter_readings")
+      .select("*")
+      .eq("room_id", roomId)
+      .lt("period", period)
+      .order("period", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) rethrow(error, "Không đọc được chỉ số kỳ trước");
+    return data ? toMeterReading(data as MeterReadingRow) : null;
+  },
+
+  async saveMeterReading(input: MeterReadingInput) {
+    const supabase = await createClient();
+    // upsert theo (room_id, period): ghi lại chỉ số của cùng một tháng là SỬA,
+    // không phải thêm dòng thứ hai.
+    const { data, error } = await supabase
+      .from("meter_readings")
+      .upsert(meterReadingToRow(input), { onConflict: "room_id,period" })
+      .select("*")
+      .single();
+    if (error) rethrow(error, "Không lưu được chỉ số điện nước");
+    return toMeterReading(data as MeterReadingRow);
+  },
+
+  async deleteMeterReading(id) {
+    const supabase = await createClient();
+    const { error } = await supabase.from("meter_readings").delete().eq("id", id);
+    if (error) rethrow(error, "Không xoá được chỉ số");
+  },
+
+  /* -------------------------------------------------------------- hoá đơn */
+
+  async listInvoices(filter: InvoiceFilter = {}) {
+    const supabase = await createClient();
+
+    let query = supabase.from("invoices").select(INVOICE_SELECT);
+    if (filter.status && filter.status !== "all") query = query.eq("status", filter.status);
+    if (filter.period) query = query.eq("period", filter.period);
+    if (filter.roomId) query = query.eq("room_id", filter.roomId);
+
+    const { data, error } = await query.order("period", { ascending: false });
+    if (error) rethrow(error, "Không đọc được danh sách hoá đơn");
+
+    // Cùng một kỳ thì xếp theo mã phòng, để bảng đọc như sơ đồ nhà trọ.
+    return mapInvoiceDetails(data).sort(
+      (a, b) => b.period.localeCompare(a.period) || a.room.code.localeCompare(b.room.code),
+    );
+  },
+
+  async listInvoicesForTenant(tenantId) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("invoices")
+      .select(INVOICE_SELECT)
+      .eq("tenant_id", tenantId)
+      .order("period", { ascending: false });
+    if (error) rethrow(error, "Không đọc được hoá đơn của bạn");
+    return mapInvoiceDetails(data);
+  },
+
+  async getInvoice(id) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("invoices")
+      .select(INVOICE_SELECT)
+      .eq("id", id)
+      .maybeSingle();
+    if (error) rethrow(error, "Không đọc được hoá đơn");
+    if (!data) return null;
+    return mapInvoiceDetails([data])[0] ?? null;
+  },
+
+  async createInvoice(input: InvoiceInput) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("invoices")
+      .insert(invoiceToRow(input))
+      .select("*")
+      .single();
+    if (error) rethrow(error, "Không lập được hoá đơn");
+    return toInvoice(data as InvoiceRow);
+  },
+
+  async updateInvoice(id, input: InvoiceInput) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("invoices")
+      .update(invoiceToRow(input))
+      .eq("id", id)
+      .select("*")
+      .single();
+    if (error) rethrow(error, "Không cập nhật được hoá đơn");
+    return toInvoice(data as InvoiceRow);
+  },
+
+  async setInvoiceStatus(id, status, options = {}) {
+    const supabase = await createClient();
+
+    // Mốc thời gian đi kèm trạng thái, không tách rời: constraint
+    // `invoices_paid_has_timestamp` từ chối "đã thu" mà thiếu `paid_at`.
+    const patch: Record<string, unknown> = { status };
+    if (status === "issued") {
+      patch.issued_at = new Date().toISOString();
+      patch.paid_at = null;
+      patch.paid_method = null;
+    } else if (status === "paid") {
+      patch.paid_at = new Date().toISOString();
+      patch.paid_method = options.paidMethod ?? null;
+    } else {
+      patch.paid_at = null;
+      patch.paid_method = null;
+    }
+
+    const { data, error } = await supabase
+      .from("invoices")
+      .update(patch)
+      .eq("id", id)
+      .select(INVOICE_SELECT)
+      .single();
+    if (error) rethrow(error, "Không đổi được trạng thái hoá đơn");
+
+    const detail = mapInvoiceDetails([data])[0];
+    if (!detail) throw new Error("INVOICE_NOT_FOUND");
+    return detail;
+  },
+
+  async deleteInvoice(id) {
+    const supabase = await createClient();
+    const { error } = await supabase.from("invoices").delete().eq("id", id);
+    if (error) rethrow(error, "Không xoá được hoá đơn");
+  },
+
+  async listOverdueInvoices(today) {
+    // service-role: job cron chạy khi không có ai đăng nhập, client thường sẽ bị
+    // RLS lọc sạch và cron sẽ "thành công" mà không nhắc ai cả.
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("invoices")
+      .select(INVOICE_SELECT)
+      .eq("status", "issued")
+      .not("due_date", "is", null)
+      .lt("due_date", today)
+      .order("due_date");
+    if (error) rethrow(error, "Không đọc được hoá đơn quá hạn");
+    return mapInvoiceDetails(data);
+  },
+
+  async hasInvoiceDueReminder(invoiceId) {
+    const supabase = createAdminClient();
+    const { count, error } = await supabase
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("invoice_id", invoiceId)
+      .eq("type", "invoice_due");
+    if (error) rethrow(error, "Không kiểm được thông báo nhắc hạn");
+    return (count ?? 0) > 0;
+  },
+
+  /* ------------------------------------------------------------ thông báo */
+
+  async listNotifications(userId, limit = 50) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("notifications")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error) rethrow(error, "Không đọc được thông báo");
+    return (data as NotificationRow[]).map(toNotification);
+  },
+
+  async countUnreadNotifications(userId) {
+    const supabase = await createClient();
+    const { count, error } = await supabase
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .is("read_at", null);
+    if (error) rethrow(error, "Không đếm được thông báo chưa đọc");
+    return count ?? 0;
+  },
+
+  async listAdmins() {
+    // service-role: hàm này được gọi từ phiên của NGƯỜI THUÊ vừa gửi báo hỏng, và
+    // policy `profiles_select` chỉ cho họ đọc dòng của chính mình. Không có
+    // đường nào để họ tự tra ra danh sách chủ trọ — đó là điểm của việc dùng
+    // service-role ở đây thay vì nới policy.
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("role", "admin")
+      .eq("is_active", true)
+      .order("full_name");
+    if (error) rethrow(error, "Không đọc được danh sách chủ trọ");
+    return (data as ProfileRow[]).map(toProfile);
+  },
+
+  async createNotification(input: NotificationInput) {
+    // service-role, không phải client của người đang đăng nhập: thông báo được
+    // tạo cả từ hành động của chủ trọ LẪN từ job cron nhắc hạn, mà lúc cron chạy
+    // thì không có ai đăng nhập để RLS dựa vào.
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("notifications")
+      .insert({
+        user_id: input.userId,
+        type: input.type,
+        title: input.title,
+        body: input.body,
+        link: input.link,
+        invoice_id: input.invoiceId,
+      })
+      .select("*")
+      .single();
+    if (error) rethrow(error, "Không tạo được thông báo");
+    return toNotification(data as NotificationRow);
+  },
+
+  async markNotificationEmailSent(id) {
+    const supabase = createAdminClient();
+    const { error } = await supabase
+      .from("notifications")
+      .update({ email_sent_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) rethrow(error, "Không ghi được mốc gửi email");
+  },
+
+  async markNotificationRead(id) {
+    const supabase = await createClient();
+    // Không cần điều kiện user_id: RLS chỉ cho sửa dòng của chính mình, và GRANT
+    // ở tầng cột chỉ cho sửa đúng `read_at`.
+    const { error } = await supabase
+      .from("notifications")
+      .update({ read_at: new Date().toISOString() })
+      .eq("id", id)
+      .is("read_at", null);
+    if (error) rethrow(error, "Không đánh dấu được đã đọc");
+  },
+
+  async markAllNotificationsRead(userId) {
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("notifications")
+      .update({ read_at: new Date().toISOString() })
+      .eq("user_id", userId)
+      .is("read_at", null);
+    if (error) rethrow(error, "Không đánh dấu được đã đọc");
+  },
+
+  /* ------------------------------------------------- mã cổng / vân tay */
+
+  async getGateCredential(profileId) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("gate_credentials")
+      .select("*")
+      .eq("profile_id", profileId)
+      .maybeSingle();
+    // Người thuê gọi tới đây thì RLS trả về 0 dòng, không phải lỗi — nhưng cũng
+    // không có đường nào để họ gọi: mọi lối vào đều qua `requireAdmin()`.
+    if (error) rethrow(error, "Không đọc được mã cổng");
+    return data ? toGateCredential(data as GateCredentialRow) : null;
+  },
+
+  async saveGateCredential(profileId, input: GateCredentialInput) {
+    const supabase = await createClient();
+    const { data: userData } = await supabase.auth.getUser();
+
+    const { data, error } = await supabase
+      .from("gate_credentials")
+      .upsert(
+        {
+          profile_id: profileId,
+          gate_code: input.gateCode,
+          fingerprint_slot: input.fingerprintSlot,
+          note: input.note,
+          updated_at: new Date().toISOString(),
+          updated_by: userData.user?.id ?? null,
+        },
+        { onConflict: "profile_id" },
+      )
+      .select("*")
+      .single();
+    if (error) rethrow(error, "Không lưu được mã cổng");
+    return toGateCredential(data as GateCredentialRow);
+  },
+
+  async deleteGateCredential(profileId) {
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("gate_credentials")
+      .delete()
+      .eq("profile_id", profileId);
+    if (error) rethrow(error, "Không xoá được mã cổng");
+  },
+
   /* ------------------------------------------------------------ dashboard */
+
+  /* ------------------------------------------------------ cách nhận tiền */
+
+  async listPaymentAccounts(options = {}) {
+    const supabase = await createClient();
+
+    let query = supabase.from("payment_accounts").select("*");
+    if (!options.includeInactive) query = query.eq("is_active", true);
+
+    // `created_at` là tiêu chí phụ: hai dòng cùng sort_order (thêm liên tiếp
+    // trước khi ai đó sắp lại) vẫn phải ra thứ tự ổn định giữa các lần tải.
+    const { data, error } = await query
+      .order("sort_order")
+      .order("created_at");
+    if (error) rethrow(error, "Không đọc được danh sách nhận tiền");
+
+    return (data as PaymentAccountRow[]).map(toPaymentAccount);
+  },
+
+  async getPaymentAccount(id) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("payment_accounts")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) rethrow(error, "Không đọc được cách nhận tiền");
+    return data ? toPaymentAccount(data as PaymentAccountRow) : null;
+  },
+
+  async createBankAccount(input: PaymentAccountInput) {
+    const supabase = await createClient();
+
+    const { data, error } = await supabase
+      .from("payment_accounts")
+      .insert({
+        kind: "bank",
+        label: input.label,
+        bank_name: input.bankName,
+        account_number: input.accountNumber,
+        account_holder: input.accountHolder,
+        qr_path: null,
+        note: input.note,
+        is_active: input.isActive,
+        sort_order: await nextPaymentSortOrder(),
+      })
+      .select("*")
+      .single();
+    if (error) rethrow(error, "Không lưu được số tài khoản");
+
+    return toPaymentAccount(data as PaymentAccountRow);
+  },
+
+  async createQrAccount(input, file) {
+    const supabase = await createClient();
+
+    const extension =
+      { "image/webp": "webp", "image/png": "png", "image/jpeg": "jpg" }[file.type] ??
+      "png";
+    const storagePath = `${crypto.randomUUID()}.${extension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(PAYMENT_QR_BUCKET)
+      .upload(storagePath, file, { contentType: file.type, upsert: false });
+
+    if (uploadError) {
+      throw new Error(
+        /row-level security|Unauthorized/i.test(uploadError.message)
+          ? "PAYMENT_QR_UPLOAD_FORBIDDEN"
+          : `Không tải được ảnh QR lên: ${uploadError.message}`,
+      );
+    }
+
+    const { data, error } = await supabase
+      .from("payment_accounts")
+      .insert({
+        kind: "qr",
+        label: input.label,
+        qr_path: storagePath,
+        note: input.note,
+        is_active: input.isActive,
+        sort_order: await nextPaymentSortOrder(),
+      })
+      .select("*")
+      .single();
+
+    if (error) {
+      // Ghi bảng hỏng thì file vừa lên thành rác vĩnh viễn — dọn ngay.
+      await supabase.storage.from(PAYMENT_QR_BUCKET).remove([storagePath]);
+      rethrow(error, "Không lưu được ảnh QR");
+    }
+
+    return toPaymentAccount(data as PaymentAccountRow);
+  },
+
+  async updatePaymentAccount(id, input: PaymentAccountInput) {
+    const supabase = await createClient();
+
+    const current = await supabaseAdapter.getPaymentAccount(id);
+    if (!current) throw new Error("PAYMENT_ACCOUNT_NOT_FOUND");
+
+    // Dòng QR chỉ đổi được nhãn/ghi chú/bật-tắt. Ba cột ngân hàng phải giữ null,
+    // nếu không ràng buộc `payment_accounts_shape` sẽ chặn — và đúng ra là thế.
+    const patch =
+      current.kind === "qr"
+        ? { label: input.label, note: input.note, is_active: input.isActive }
+        : {
+            label: input.label,
+            bank_name: input.bankName,
+            account_number: input.accountNumber,
+            account_holder: input.accountHolder,
+            note: input.note,
+            is_active: input.isActive,
+          };
+
+    const { data, error } = await supabase
+      .from("payment_accounts")
+      .update(patch)
+      .eq("id", id)
+      .select("*")
+      .single();
+    if (error) rethrow(error, "Không cập nhật được cách nhận tiền");
+
+    return toPaymentAccount(data as PaymentAccountRow);
+  },
+
+  async deletePaymentAccount(id) {
+    const supabase = await createClient();
+
+    const current = await supabaseAdapter.getPaymentAccount(id);
+    if (!current) return;
+
+    const { error } = await supabase.from("payment_accounts").delete().eq("id", id);
+    if (error) rethrow(error, "Không xoá được cách nhận tiền");
+
+    // Xoá file SAU khi xoá dòng, cùng lý do như ảnh phòng: làm ngược lại mà xoá
+    // dòng hỏng thì giao diện còn thẻ QR nhưng ảnh đã mất.
+    if (current.qrPath) {
+      await supabase.storage.from(PAYMENT_QR_BUCKET).remove([current.qrPath]);
+    }
+  },
+
+  async movePaymentAccount(id, direction) {
+    const supabase = await createClient();
+
+    const { data: siblings, error: listError } = await supabase
+      .from("payment_accounts")
+      .select("id")
+      .order("sort_order")
+      .order("created_at");
+    if (listError) rethrow(listError, "Không đọc được danh sách nhận tiền");
+
+    const ids = (siblings as { id: string }[]).map((row) => row.id);
+    const from = ids.indexOf(id);
+    const to = from + direction;
+    if (from === -1 || to < 0 || to >= ids.length) return;
+
+    [ids[from], ids[to]] = [ids[to], ids[from]];
+
+    for (const [index, rowId] of ids.entries()) {
+      const { error } = await supabase
+        .from("payment_accounts")
+        .update({ sort_order: index })
+        .eq("id", rowId);
+      if (error) rethrow(error, "Không đổi được thứ tự");
+    }
+  },
+
+  /* ------------------------------------------------------------ báo hỏng */
+
+  async listMaintenanceRequests(filter: MaintenanceFilter = {}) {
+    const supabase = await createClient();
+
+    let query = supabase.from("maintenance_requests").select(MAINTENANCE_SELECT);
+    if (filter.roomId) query = query.eq("room_id", filter.roomId);
+    if (filter.status === "active") {
+      query = query.in("status", ["open", "in_progress"]);
+    } else if (filter.status && filter.status !== "all") {
+      query = query.eq("status", filter.status);
+    }
+
+    const { data, error } = await query.order("created_at", { ascending: false });
+    if (error) rethrow(error, "Không đọc được danh sách báo hỏng");
+
+    return mapMaintenanceDetails(data);
+  },
+
+  async listMaintenanceRequestsForUser() {
+    const supabase = await createClient();
+
+    // Không lọc theo userId ở đây: RLS đã quyết định người này thấy phiếu nào
+    // (phòng đang ở + phiếu tự gửi). Lọc thêm ở app sẽ chỉ làm hai nơi cùng
+    // định nghĩa "của tôi", và sớm muộn hai định nghĩa đó lệch nhau.
+    const { data, error } = await supabase
+      .from("maintenance_requests")
+      .select(MAINTENANCE_SELECT)
+      .order("created_at", { ascending: false });
+    if (error) rethrow(error, "Không đọc được danh sách báo hỏng");
+
+    return mapMaintenanceDetails(data);
+  },
+
+  async getMaintenanceRequest(id) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("maintenance_requests")
+      .select(MAINTENANCE_SELECT)
+      .eq("id", id)
+      .maybeSingle();
+    if (error) rethrow(error, "Không đọc được phiếu báo hỏng");
+    if (!data) return null;
+    return mapMaintenanceDetails([data])[0] ?? null;
+  },
+
+  async createMaintenanceRequest(input) {
+    const supabase = await createClient();
+
+    const { data, error } = await supabase
+      .from("maintenance_requests")
+      .insert({
+        room_id: input.roomId,
+        reported_by: input.reportedBy,
+        title: input.title,
+        description: input.description,
+        priority: input.priority,
+        status: "open",
+      })
+      .select("*")
+      .single();
+    if (error) rethrow(error, "Không gửi được báo hỏng");
+
+    return toMaintenanceRequest(data as MaintenanceRow);
+  },
+
+  async updateMaintenanceRequest(id, input: MaintenanceInput) {
+    const supabase = await createClient();
+
+    const { error } = await supabase
+      .from("maintenance_requests")
+      .update({
+        room_id: input.roomId,
+        title: input.title,
+        description: input.description,
+        priority: input.priority,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+    if (error) rethrow(error, "Không cập nhật được phiếu báo hỏng");
+
+    const detail = await supabaseAdapter.getMaintenanceRequest(id);
+    if (!detail) throw new Error("MAINTENANCE_NOT_FOUND");
+    return detail;
+  },
+
+  async setMaintenanceStatus(id, status, options = {}) {
+    const supabase = await createClient();
+
+    const current = await supabaseAdapter.getMaintenanceRequest(id);
+    if (!current) throw new Error("MAINTENANCE_NOT_FOUND");
+
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from("maintenance_requests")
+      .update({
+        status,
+        updated_at: now,
+        // `resolved_at` là cột một chiều: đặt khi chuyển sang 'resolved', và giữ
+        // nguyên nếu sau đó phiếu bị mở lại — mốc "lần đầu báo đã sửa xong" là
+        // thứ đáng giữ, còn lần mở lại đã có `updated_at` ghi hộ.
+        resolved_at: status === "resolved" ? (current.resolvedAt ?? now) : current.resolvedAt,
+        resolution_note:
+          options.resolutionNote === undefined
+            ? current.resolutionNote
+            : options.resolutionNote,
+      })
+      .eq("id", id);
+    if (error) rethrow(error, "Không đổi được trạng thái phiếu");
+
+    // Chi phí sửa KHÔNG nằm ở bảng phiếu — người thuê đọc được dòng phiếu của
+    // mình. Nó thành một dòng nhật ký phòng, bảng vốn chỉ mở cho admin.
+    if (options.cost !== undefined && options.cost !== null && options.cost > 0) {
+      await supabase.from("room_events").insert({
+        room_id: current.roomId,
+        type: "maintenance",
+        title: current.title,
+        content: options.resolutionNote ?? current.resolutionNote,
+        cost: options.cost,
+        occurred_at: now,
+      });
+    }
+
+    const detail = await supabaseAdapter.getMaintenanceRequest(id);
+    if (!detail) throw new Error("MAINTENANCE_NOT_FOUND");
+    return detail;
+  },
+
+  async updateOwnMaintenanceRequest(id, input) {
+    const supabase = await createClient();
+
+    // Qua SQL function chứ không UPDATE thẳng: hàm kiểm "phiếu của chính tôi" và
+    // "còn ở trạng thái open" trong cùng một giao dịch, và chỉ chạm đúng ba cột.
+    // Một policy UPDATE cho người thuê sẽ đồng thời cho họ tự đặt status.
+    const { error } = await supabase.rpc("update_my_maintenance_request", {
+      request_id: id,
+      new_title: input.title,
+      new_description: input.description,
+      new_priority: input.priority,
+    });
+    if (error) rethrow(error, "Không sửa được phiếu báo hỏng");
+  },
+
+  async closeMaintenanceRequest(id, note) {
+    const supabase = await createClient();
+
+    const { error } = await supabase.rpc("close_maintenance_request", {
+      request_id: id,
+      note,
+    });
+    if (error) rethrow(error, "Không đóng được phiếu báo hỏng");
+  },
+
+  async deleteMaintenanceRequest(id) {
+    const supabase = await createClient();
+    // Ảnh đi theo: `maintenance_photos.request_id` có ON DELETE CASCADE nên các
+    // dòng tự biến mất, nhưng FILE trong bucket thì không — Storage không biết gì
+    // về khoá ngoại. Dọn file trước, rồi mới xoá phiếu.
+    const paths = await supabaseAdapter.listMaintenancePhotos(id);
+    if (paths.length > 0) {
+      await supabase.storage
+        .from(MAINTENANCE_PHOTO_BUCKET)
+        .remove(paths.map((photo) => photo.storagePath));
+    }
+
+    const { error } = await supabase.from("maintenance_requests").delete().eq("id", id);
+    if (error) rethrow(error, "Không xoá được phiếu báo hỏng");
+  },
+
+  /* ------------------------------------------- ảnh đính kèm báo hỏng */
+
+  async listMaintenancePhotos(requestId) {
+    const supabase = await createClient();
+
+    const { data, error } = await supabase
+      .from("maintenance_photos")
+      .select("*")
+      .eq("request_id", requestId)
+      .order("created_at");
+    if (error) rethrow(error, "Không đọc được ảnh đính kèm");
+
+    const rows = (data ?? []) as MaintenancePhotoRow[];
+    if (rows.length === 0) return [];
+
+    // Ký một lượt cho cả danh sách thay vì mỗi ảnh một lần gọi.
+    const { data: signed } = await supabase.storage
+      .from(MAINTENANCE_PHOTO_BUCKET)
+      .createSignedUrls(
+        rows.map((row) => row.storage_path),
+        MAINTENANCE_PHOTO_URL_TTL_SECONDS,
+      );
+
+    const urlByPath = new Map(
+      (signed ?? []).map((entry) => [entry.path ?? "", entry.signedUrl ?? null]),
+    );
+
+    // Ảnh ký hỏng vẫn trả về dòng với `url = null`: giao diện hiện một ô báo
+    // "không mở được ảnh" thay vì im lặng giấu mất một tấm ảnh có thật.
+    return rows.map((row) =>
+      toMaintenancePhoto(row, urlByPath.get(row.storage_path) ?? null),
+    );
+  },
+
+  async countMaintenancePhotos(requestId) {
+    const supabase = await createClient();
+    const { count, error } = await supabase
+      .from("maintenance_photos")
+      .select("id", { count: "exact", head: true })
+      .eq("request_id", requestId);
+    if (error) rethrow(error, "Không đếm được ảnh đính kèm");
+    return count ?? 0;
+  },
+
+  async addMaintenancePhoto(requestId, uploaderId, file) {
+    const supabase = await createClient();
+
+    const extension =
+      { "image/webp": "webp", "image/png": "png", "image/jpeg": "jpg" }[file.type] ??
+      "jpg";
+    // Thư mục đầu tiên PHẢI là id phiếu: policy trên storage.objects đọc đúng
+    // phần đó để biết ảnh thuộc phiếu nào. Đổi quy ước này là mở toang bucket.
+    const storagePath = `${requestId}/${crypto.randomUUID()}.${extension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(MAINTENANCE_PHOTO_BUCKET)
+      .upload(storagePath, file, { contentType: file.type, upsert: false });
+
+    if (uploadError) {
+      throw new Error(
+        /row-level security|Unauthorized/i.test(uploadError.message)
+          ? "MAINTENANCE_PHOTO_FORBIDDEN"
+          : `Không tải được ảnh lên: ${uploadError.message}`,
+      );
+    }
+
+    const { data, error } = await supabase
+      .from("maintenance_photos")
+      .insert({
+        request_id: requestId,
+        storage_path: storagePath,
+        uploaded_by: uploaderId,
+      })
+      .select("*")
+      .single();
+
+    if (error) {
+      // Ghi bảng hỏng thì file vừa lên thành rác vĩnh viễn — dọn ngay.
+      await supabase.storage.from(MAINTENANCE_PHOTO_BUCKET).remove([storagePath]);
+      rethrow(error, "Không lưu được ảnh đính kèm");
+    }
+
+    const row = data as MaintenancePhotoRow;
+    const { data: signed } = await supabase.storage
+      .from(MAINTENANCE_PHOTO_BUCKET)
+      .createSignedUrl(storagePath, MAINTENANCE_PHOTO_URL_TTL_SECONDS);
+
+    return toMaintenancePhoto(row, signed?.signedUrl ?? null);
+  },
+
+  async deleteMaintenancePhoto(photoId) {
+    const supabase = await createClient();
+
+    const { data: photo, error: findError } = await supabase
+      .from("maintenance_photos")
+      .select("storage_path")
+      .eq("id", photoId)
+      .maybeSingle();
+    if (findError) rethrow(findError, "Không tìm được ảnh");
+    if (!photo) return;
+
+    // Xoá dòng TRƯỚC: RLS ở đây mới là thứ quyết định người này có được xoá hay
+    // không. Xoá file trước rồi mới phát hiện không có quyền là mất ảnh mà dòng
+    // vẫn còn, và giao diện hiện một ô ảnh vỡ vĩnh viễn.
+    const { data: deleted, error } = await supabase
+      .from("maintenance_photos")
+      .delete()
+      .eq("id", photoId)
+      .select("id");
+    if (error) rethrow(error, "Không xoá được ảnh");
+    if ((deleted ?? []).length === 0) throw new Error("MAINTENANCE_PHOTO_FORBIDDEN");
+
+    await supabase.storage
+      .from(MAINTENANCE_PHOTO_BUCKET)
+      .remove([photo.storage_path as string]);
+  },
+
+  /* -------------------------------------------------- dashboard + báo cáo */
+
+  async getAdminTodo(period): Promise<AdminTodo> {
+    const supabase = await createClient();
+    // Ngày theo giờ nhà trọ: `due_date` là cột `date` thuần, so với ngày UTC thì
+    // mỗi tối 17:00–24:00 giờ Việt Nam sẽ đếm thừa một ngày hoá đơn "quá hạn".
+    const today = todayInHouseTz();
+
+    const [overdue, drafts, pendingIds, maintenance, rooms, readings] = await Promise.all([
+      supabase
+        .from("invoices")
+        .select("total")
+        .eq("status", "issued")
+        .not("due_date", "is", null)
+        .lt("due_date", today),
+      supabase.from("invoices").select("id", { count: "exact", head: true }).eq("status", "draft"),
+      supabase
+        .from("id_documents")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending"),
+      supabase
+        .from("maintenance_requests")
+        .select("priority")
+        .in("status", ["open", "in_progress"]),
+      loadRoomsWithOccupancy(),
+      supabase.from("meter_readings").select("room_id").eq("period", period),
+    ]);
+
+    if (overdue.error) rethrow(overdue.error, "Không đọc được hoá đơn quá hạn");
+    if (maintenance.error) rethrow(maintenance.error, "Không đọc được danh sách báo hỏng");
+    if (readings.error) rethrow(readings.error, "Không đọc được chỉ số điện nước");
+
+    const overdueRows = (overdue.data ?? []) as { total: number | string }[];
+    const openRows = (maintenance.data ?? []) as { priority: MaintenancePriority }[];
+    const recorded = new Set(
+      ((readings.data ?? []) as { room_id: string }[]).map((row) => row.room_id),
+    );
+
+    return {
+      overdueInvoices: overdueRows.length,
+      overdueAmount: overdueRows.reduce((sum, row) => sum + num(row.total), 0),
+      draftInvoices: drafts.count ?? 0,
+      pendingIdDocuments: pendingIds.count ?? 0,
+      openMaintenance: openRows.length,
+      urgentMaintenance: openRows.filter((row) => row.priority === "urgent").length,
+      period,
+      roomsMissingReading: rooms
+        .filter((room) => room.occupants.length > 0 && !recorded.has(room.id))
+        .map((room) => room.code),
+    };
+  },
+
+  async getRevenueReport(from, to): Promise<RevenueReport> {
+    const supabase = await createClient();
+
+    // Hoá đơn nháp và hoá đơn huỷ không phải doanh thu: nháp thì người thuê chưa
+    // thấy, huỷ thì không còn là tiền phải thu. Lọc ngay ở database.
+    const { data, error } = await supabase
+      .from("invoices")
+      .select("room_id, period, total, status, electric_kwh, water_m3, rooms(code)")
+      .gte("period", from)
+      .lte("period", to)
+      .in("status", ["issued", "paid"]);
+    if (error) rethrow(error, "Không đọc được số liệu doanh thu");
+
+    // `as unknown as` vì PostgREST khai kiểu quan hệ lồng là mảng, còn khoá
+    // ngoại một-một thì thực tế trả về đúng một object (hoặc null).
+    const rows = (data ?? []) as unknown as {
+      room_id: string;
+      period: string;
+      total: number | string;
+      status: InvoiceStatus;
+      electric_kwh: number | string;
+      water_m3: number | string;
+      rooms: { code: string } | null;
+    }[];
+
+    // Khung tháng dựng trước từ khoảng đã chọn, không dựng từ dữ liệu: tháng
+    // không thu được đồng nào phải hiện thành cột 0 chứ không được biến mất khỏi
+    // biểu đồ — đó chính là tháng chủ trọ cần nhìn.
+    const periods = new Map<string, RevenuePeriod>();
+    for (let cursor = from; cursor <= to; cursor = nextPeriodString(cursor)) {
+      periods.set(cursor, {
+        period: cursor,
+        billed: 0,
+        collected: 0,
+        outstanding: 0,
+        invoiceCount: 0,
+        paidCount: 0,
+        electricKwh: 0,
+        waterM3: 0,
+      });
+    }
+
+    const rooms = new Map<string, RevenueByRoom>();
+
+    for (const row of rows) {
+      const total = num(row.total);
+      const paid = row.status === "paid";
+      const key = row.period.slice(0, 10);
+
+      const bucket = periods.get(key);
+      if (bucket) {
+        bucket.billed += total;
+        bucket.invoiceCount += 1;
+        bucket.electricKwh += num(row.electric_kwh);
+        bucket.waterM3 += num(row.water_m3);
+        if (paid) {
+          bucket.collected += total;
+          bucket.paidCount += 1;
+        }
+      }
+
+      const room = rooms.get(row.room_id) ?? {
+        roomId: row.room_id,
+        roomCode: row.rooms?.code ?? "—",
+        billed: 0,
+        collected: 0,
+        outstanding: 0,
+        invoiceCount: 0,
+      };
+      room.billed += total;
+      room.invoiceCount += 1;
+      if (paid) room.collected += total;
+      rooms.set(row.room_id, room);
+    }
+
+    const periodList = [...periods.values()].map((entry) => ({
+      ...entry,
+      outstanding: entry.billed - entry.collected,
+    }));
+
+    const roomList = [...rooms.values()]
+      .map((entry) => ({ ...entry, outstanding: entry.billed - entry.collected }))
+      .sort((a, b) => a.roomCode.localeCompare(b.roomCode, "vi"));
+
+    const totals = periodList.reduce(
+      (sum, entry) => ({
+        billed: sum.billed + entry.billed,
+        collected: sum.collected + entry.collected,
+        outstanding: sum.outstanding + entry.outstanding,
+        invoiceCount: sum.invoiceCount + entry.invoiceCount,
+        electricKwh: sum.electricKwh + entry.electricKwh,
+        waterM3: sum.waterM3 + entry.waterM3,
+      }),
+      { billed: 0, collected: 0, outstanding: 0, invoiceCount: 0, electricKwh: 0, waterM3: 0 },
+    );
+
+    return { from, to, periods: periodList, rooms: roomList, totals };
+  },
 
   async getAdminStats(): Promise<AdminStats> {
     const rooms = await loadRoomsWithOccupancy();
 
     const occupiedRooms = rooms.filter((r) => r.status === "occupied").length;
     const activeTenancies = rooms.flatMap((r) => r.occupants.map((o) => o.tenancy));
+
+    const supabase = await createClient();
+    const { data: unpaidRows, error: unpaidError } = await supabase
+      .from("invoices")
+      .select("total")
+      .eq("status", "issued");
+    if (unpaidError) rethrow(unpaidError, "Không đọc được hoá đơn chưa thu");
+
+    const unpaid = ((unpaidRows ?? []) as { total: number | string }[]).map((row) =>
+      num(row.total),
+    );
 
     return {
       totalRooms: rooms.length,
@@ -1366,6 +2845,8 @@ export const supabaseAdapter: Repository = {
       activeTenants: new Set(activeTenancies.map((t) => t.tenantId)).size,
       monthlyRevenue: activeTenancies.reduce((sum, t) => sum + t.monthlyPrice, 0),
       occupancyRate: rooms.length === 0 ? 0 : occupiedRooms / rooms.length,
+      unpaidInvoices: unpaid.length,
+      unpaidAmount: unpaid.reduce((sum, value) => sum + value, 0),
     };
   },
 };

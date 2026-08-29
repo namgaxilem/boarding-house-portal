@@ -68,6 +68,15 @@ async function CheckOut({
     );
   }
 
+  // Hoá đơn chưa thu của chính người này — số điền sẵn cho ô "trừ vào cọc".
+  //
+  // Đọc ở page chứ không ở form: form là client component, và một truy vấn ở đó
+  // sẽ chạy trong trình duyệt bằng anon key.
+  const invoices = await db.listInvoicesForTenant(tenancy.tenantId);
+  const unpaidTotal = invoices
+    .filter((invoice) => invoice.status === "issued")
+    .reduce((sum, invoice) => sum + invoice.total, 0);
+
   return (
     <div className="space-y-6">
       {header}
@@ -76,7 +85,11 @@ async function CheckOut({
           Hợp đồng vẫn được giữ lại sau khi trả phòng — đó chính là lịch sử của phòng.
         </AlertDescription>
       </Alert>
-      <CheckOutForm tenancy={tenancy} today={toDateInputValue(new Date())} />
+      <CheckOutForm
+        tenancy={tenancy}
+        today={toDateInputValue(new Date())}
+        unpaidTotal={unpaidTotal}
+      />
     </div>
   );
 }

@@ -1,0 +1,24 @@
+name: Nhắc hoá đơn quá hạn
+
+# Mỗi hoá đơn quá hạn được nhắc ĐÚNG MỘT LẦN (endpoint tự kiểm), nên chạy hàng
+# ngày là an toàn: ngày nào có hoá đơn mới quá hạn thì ngày đó có người được nhắc.
+#
+# Cần secrets: CRON_SECRET (giống .env.local trên server) và APP_URL.
+on:
+  schedule:
+    - cron: "0 2 * * *" # 02:00 UTC ~ 09:00 giờ VN
+  workflow_dispatch:
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gọi endpoint nhắc hạn
+        run: |
+          response=$(curl -sS -w "\n%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.APP_URL }}/api/cron/invoice-reminders")
+          body=$(echo "$response" | head -n -1)
+          code=$(echo "$response" | tail -n 1)
+          echo "HTTP $code — $body"
+          test "$code" = "200"
