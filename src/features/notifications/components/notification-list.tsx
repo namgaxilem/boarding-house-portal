@@ -5,6 +5,9 @@ import {
   BanknoteIcon,
   ClockIcon,
   WrenchIcon,
+  BatteryLowIcon,
+  FingerprintIcon,
+  KeyRoundIcon,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -24,6 +27,9 @@ const ICON: Record<NotificationType, typeof BellIcon> = {
   invoice_due: ClockIcon,
   maintenance_new: WrenchIcon,
   maintenance_update: WrenchIcon,
+  gate_alert: KeyRoundIcon,
+  gate_battery_low: BatteryLowIcon,
+  gate_fingerprint_new: FingerprintIcon,
   general: BellIcon,
 };
 
@@ -33,6 +39,11 @@ const ICON_STYLE: Record<NotificationType, string> = {
   invoice_due: "bg-warning/15 text-warning-foreground dark:text-warning",
   maintenance_new: "bg-warning/15 text-warning-foreground dark:text-warning",
   maintenance_update: "bg-info/12 text-info",
+  // Đỏ, không vàng: "người đã đi vẫn mở được cổng" là chuyện an ninh, không phải
+  // một lời nhắc nhẹ nhàng.
+  gate_alert: "bg-destructive/10 text-destructive",
+  gate_battery_low: "bg-warning/15 text-warning-foreground dark:text-warning",
+  gate_fingerprint_new: "bg-info/12 text-info",
   general: "bg-secondary text-muted-foreground",
 };
 

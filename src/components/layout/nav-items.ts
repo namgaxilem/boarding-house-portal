@@ -4,6 +4,7 @@ import {
   DoorOpenIcon,
   GaugeIcon,
   IdCardIcon,
+  KeyRoundIcon,
   ReceiptTextIcon,
   UsersIcon,
   SettingsIcon,
@@ -24,11 +25,13 @@ export interface NavItem {
   /**
    * Khoá trong `AdminTodo` để lấy số hiện trên huy hiệu.
    *
-   * Chỉ hai mục có: giấy tờ và báo hỏng. Đó là hai chỗ NGƯỜI KHÁC tạo ra việc
-   * cho chủ trọ — mọi mục còn lại là việc chủ trọ tự chủ động vào làm, và một
-   * con số đỏ ở đó chỉ dạy người ta bỏ qua huy hiệu.
+   * Ba mục có: giấy tờ, báo hỏng, và cổng. Hai cái đầu là chỗ NGƯỜI KHÁC tạo ra
+   * việc cho chủ trọ. Cái thứ ba khác: việc do chính hệ thống phát hiện ra —
+   * người đã trả phòng mà mã cổng vẫn còn — và đó đúng là loại việc con người
+   * quên. Mọi mục còn lại là việc chủ trọ tự chủ động vào làm, và một con số đỏ
+   * ở đó chỉ dạy người ta bỏ qua huy hiệu.
    */
-  badge?: "pendingIdDocuments" | "openMaintenance";
+  badge?: "pendingIdDocuments" | "openMaintenance" | "gateCredentialsToRevoke";
 }
 
 export const ADMIN_NAV: NavItem[] = [
@@ -50,6 +53,13 @@ export const ADMIN_NAV: NavItem[] = [
     icon: IdCardIcon,
     matchPrefix: true,
     badge: "pendingIdDocuments",
+  },
+  {
+    href: "/admin/gate",
+    label: "Cổng",
+    icon: KeyRoundIcon,
+    matchPrefix: true,
+    badge: "gateCredentialsToRevoke",
   },
   { href: "/admin/reports", label: "Báo cáo", icon: ChartColumnIcon, matchPrefix: true },
   { href: "/admin/settings", label: "Cài đặt", icon: SettingsIcon, matchPrefix: true },

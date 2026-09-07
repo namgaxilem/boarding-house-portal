@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { requireAdmin } from "@/lib/auth/dal";
 import { db } from "@/lib/db";
+import { notifyGateCredentialToRevoke } from "@/lib/notify";
 import {
   describeError,
   fail,
@@ -26,6 +27,7 @@ export async function checkIn(
     tenantId: formData.get("tenantId"),
     isPrimary: formData.get("isPrimary") ?? undefined,
     startDate: formData.get("startDate"),
+    expectedEndDate: formData.get("expectedEndDate") ?? undefined,
     deposit: formData.get("deposit"),
     monthlyPrice: formData.get("monthlyPrice"),
   });
@@ -76,6 +78,26 @@ export async function checkOut(
     });
   } catch (error) {
     return fail(describeError(error, "Không kết thúc được hợp đồng."));
+  }
+
+  // Nhắc xoá mã cổng. CỐ Ý nằm SAU `endTenancy` và cố ý không throw.
+  //
+  // Trả phòng là bản ghi tài chính: cọc đã kết toán, tiền đã trao tay, nhật ký
+  // phòng đã ghi. Một lỗi ở tầng thông báo không được làm Server Action báo đỏ
+  // và khiến chủ trọ bấm trả phòng lần thứ hai — lần hai sẽ báo "hợp đồng đã kết
+  // thúc" và họ không hiểu chuyện gì. Cùng lập luận với `notify.ts` dòng 18-27.
+  try {
+    const credential = await db.getGateCredential(tenancy.tenantId);
+    if (credential) {
+      await notifyGateCredentialToRevoke({
+        tenantName: tenancy.tenant.fullName,
+        tenantId: tenancy.tenantId,
+        roomCode: tenancy.room.code,
+        credential,
+      });
+    }
+  } catch (error) {
+    console.error("[gate] Không tạo được nhắc xoá mã cổng", error);
   }
 
   revalidatePath("/admin");

@@ -8,6 +8,7 @@ import { MAINTENANCE_STATUS_LABEL } from "@/lib/constants";
 import { houseConfig } from "@/config/site";
 import type {
   AppNotification,
+  GateCredential,
   InvoiceDetail,
   MaintenanceRequestDetail,
   NotificationType,
@@ -269,6 +270,59 @@ export async function notifyMaintenanceUpdated(
         link: maintenanceLink(request, recipient.role),
         emailLines: request.resolutionNote ? [request.resolutionNote] : undefined,
         actionLabel: "Xem phiếu",
+      }),
+    ),
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Thông báo về cổng                                                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Người vừa trả phòng vẫn còn mã cổng / ngăn vân tay trên thiết bị.
+ *
+ * Trước khi có hàm này, thứ DUY NHẤT chặn một người đã dọn đi khỏi cái cổng là
+ * chủ trọ tự nhớ ra: `endTenancy()` không đụng gì tới `gate_credentials`, và lời
+ * nhắc duy nhất là một câu chữ trong hộp thoại xoá mà chỉ hiện khi người ta đã
+ * chủ động vào đó để xoá — tức là chỉ hiện cho người đã nhớ rồi.
+ *
+ * Cố ý KHÔNG tự xoá dòng `gate_credentials`. Xoá ghi chép trong app không xoá
+ * được mã trên thiết bị ở cổng, mà lại làm mất luôn thông tin "ngăn số mấy" cần
+ * xoá. Việc phải làm bằng tay ngoài cổng, nên thứ app làm được là không cho quên.
+ *
+ * Gửi cho MỌI chủ trọ đang hoạt động: nhà trọ có thể có hai tài khoản (vợ chồng,
+ * hoặc người quản lý thuê), và ai ra tới cổng trước thì xử lý trước.
+ */
+export async function notifyGateCredentialToRevoke(input: {
+  tenantName: string;
+  tenantId: string;
+  roomCode: string;
+  credential: GateCredential;
+}) {
+  const admins = await db.listAdmins();
+  if (admins.length === 0) return;
+
+  const parts: string[] = [];
+  if (input.credential.gateCode) parts.push(`mã cổng ${input.credential.gateCode}`);
+  if (input.credential.fingerprintSlot) parts.push(input.credential.fingerprintSlot);
+  const what = parts.length > 0 ? parts.join(" · ") : "ghi chép mã cổng";
+
+  await Promise.all(
+    admins.map((admin) =>
+      notifyUser({
+        recipient: admin,
+        type: "gate_alert",
+        title: `Xoá mã cổng của ${input.tenantName}`,
+        body:
+          `${input.tenantName} đã trả phòng ${input.roomCode} nhưng ${what} vẫn còn ` +
+          `trên thiết bị ở cổng. Ra cổng xoá, rồi xoá ghi chép trong app.`,
+        link: `/admin/tenants/${input.tenantId}`,
+        emailLines: [
+          "App không xoá hộ được: mã và vân tay nằm trong bộ nhớ của ổ khoá, " +
+            "không nằm trong database.",
+        ],
+        actionLabel: "Mở hồ sơ người thuê",
       }),
     ),
   );

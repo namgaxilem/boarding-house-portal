@@ -53,7 +53,7 @@ export const houseConfig = {
 
   /** Thông tin liên hệ chủ trọ. */
   contact: {
-    ownerName: "Nguyễn Văn Tâm",
+    ownerName: "Nguyễn Đức Nam",
     phone: "0901234567",
     zalo: "0901234567",
     email: "nhatrotanphat@gmail.com",
@@ -67,9 +67,9 @@ export const houseConfig = {
   bank: {
     name: "Vietcombank",
     accountNumber: "0011001234567",
-    accountHolder: "NGUYEN VAN TAM",
+    accountHolder: "NGUYEN DUC NAM",
     /** Cú pháp chuyển khoản gợi ý cho người thuê. */
-    transferNote: "[Mã phòng] [Tháng] - VD: P101 08/2026",
+    transferNote: "[Mã phòng] [Tháng] - VD: 1 09/2026",
   } as {
     name: string;
     accountNumber: string;
@@ -100,6 +100,52 @@ export const houseConfig = {
     maxOccupants: 2,
   },
 
+  /**
+   * Khoá cổng thông minh TTLock. Số ở đây đổi được mà không phải migrate.
+   *
+   * Bí mật (clientId, clientSecret, tài khoản TTLock) nằm ở `.env.local`, KHÔNG
+   * ở đây — file này đi vào bundle gửi xuống trình duyệt.
+   */
+  gate: {
+    /** Số chữ số của mã tự sinh. TTLock nhận 4–9; 6 là mức người ta nhớ được. */
+    pinLength: 6,
+    /**
+     * Mã cấp ra sống bao nhiêu ngày. KHÔNG phải hạn hợp đồng — là cửa sổ trượt,
+     * cron đẩy ra xa dần khi hợp đồng còn hiệu lực.
+     *
+     * 60 ngày là CỐ Ý rộng. Bị khoá ngoài lúc nửa đêm tệ hơn hẳn một mã cũ còn
+     * sống thêm vài tuần, nên biên an toàn nghiêng hẳn về phía không nhốt nhầm
+     * người: gateway rút phích một tuần, đổi router, chủ trọ đi vắng — không cái
+     * nào được phép làm người thuê đứng ngoài cổng.
+     */
+    pinWindowDays: 60,
+    /** Còn dưới bấy nhiêu ngày thì cron gia hạn. Mỗi mã bị đụng ~1 lần/tháng. */
+    pinRenewBeforeDays: 30,
+    /**
+     * Đệm thêm sau `tenancies.expected_end_date`.
+     *
+     * Hợp đồng hết hạn hôm nay mà mã chết đúng nửa đêm hôm nay là nhốt người ta
+     * ngoài cổng vào đúng cái đêm hai bên còn đang thương lượng gia hạn.
+     */
+    graceDays: 14,
+    /** Dưới mức này thì báo chủ trọ, tối đa 7 ngày một lần. */
+    lowBatteryPercent: 25,
+    /** Kéo lùi con trỏ nhật ký bấy nhiêu giờ mỗi lần, phòng lệch đồng hồ ổ khoá. */
+    recordOverlapHours: 6,
+    /** Lần đồng bộ đầu tiên kéo về bao nhiêu ngày. Không kéo cả năm. */
+    recordFirstRunDays: 7,
+    /** Thử ngần này lần không xong thì chuyển 'failed' và gọi người xem. */
+    maxSyncAttempts: 5,
+    /**
+     * Tiền tố tên mã đặt trên ổ khoá: 'NT-1-3f9a2c1b'.
+     *
+     * Đây là thứ phân biệt mã DO APP CẤP với mã chủ trọ tự bấm trong app TTLock.
+     * App không bao giờ xoá mã không mang tiền tố này. ĐỔI TIỀN TỐ SAU KHI ĐÃ CẤP
+     * MÃ = app mất dấu toàn bộ mã cũ và coi chúng là mã người ngoài.
+     */
+    passcodeNamePrefix: "NT",
+  },
+
   /** Tiện ích hiển thị ở trang giới thiệu công khai. */
   amenities: [
     "Phòng khép kín, có gác lửng",
@@ -117,13 +163,27 @@ export const houseConfig = {
    * thoại chủ trọ; một hộp chat trong app chỉ thêm một nơi nữa phải kiểm tra tin
    * nhắn, và tin nhắn nào cần trả lời gấp thì người ta vẫn gọi điện.
    *
-   * Mã mở cổng / vân tay KHÔNG phải cờ ở đây: nó không phải tính năng cho người
-   * thuê mà là ghi chép nội bộ, nằm ở /admin/tenants/<id> và chỉ chủ trọ xem được
-   * (bảng `gate_credentials`, RLS chỉ mở cho admin).
+   * GHI CHÉP mã cổng / vân tay KHÔNG phải cờ ở đây: nó không phải tính năng cho
+   * người thuê mà là sổ tay nội bộ, nằm ở /admin/tenants/<id> và chỉ chủ trọ xem
+   * được (bảng `gate_credentials`, RLS chỉ mở cho admin). Luôn bật.
+   *
+   * `smartGate` thì khác: nó bật/tắt phần NÓI CHUYỆN VỚI THIẾT BỊ.
    */
   features: {
     publicLanding: true,
     publicRoomList: true,
+    /**
+     * Khoá cổng thông minh TTLock. Bật thì hiện mục "Cổng" trên thanh quản trị.
+     *
+     * Hai công tắc, cố ý:
+     *   - cờ này  = có hiện giao diện không
+     *   - TTLOCK_* trong .env.local = có gọi được API không
+     *
+     * Bật cờ mà chưa điền env thì /admin/gate hiện danh sách việc cần làm để cài
+     * đặt, không báo lỗi. Đó chính là trạng thái hữu ích trong 1–2 tuần chờ
+     * TTLock duyệt tài khoản nhà phát triển.
+     */
+    smartGate: true,
   },
 
   /**

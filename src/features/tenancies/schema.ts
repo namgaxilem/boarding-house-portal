@@ -10,6 +10,13 @@ export const checkInSchema = z.object({
     .string()
     .min(1, "Chọn ngày nhận phòng")
     .refine((value) => !Number.isNaN(Date.parse(value)), "Ngày không hợp lệ"),
+  // Tuỳ chọn: thuê không kỳ hạn thì bỏ trống. Ô rỗng về `null`, không về "".
+  expectedEndDate: z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) => (value ? value : null))
+    .refine((value) => value === null || !Number.isNaN(Date.parse(value)), "Ngày không hợp lệ"),
   deposit: z.coerce
     .number({ error: "Tiền cọc phải là số" })
     .int("Tiền cọc phải là số nguyên")
@@ -18,7 +25,13 @@ export const checkInSchema = z.object({
     .number({ error: "Giá thuê phải là số" })
     .int("Giá thuê phải là số nguyên")
     .min(0, "Giá thuê không được âm"),
-});
+})
+  // Hết hạn trước ngày nhận phòng là dữ liệu vô nghĩa, và nó đi thẳng vào hạn
+  // hiệu lực của mã cổng — sai ở đây là người thuê bấm mã không mở được cổng.
+  .refine(
+    (data) => !data.expectedEndDate || data.expectedEndDate > data.startDate,
+    { path: ["expectedEndDate"], message: "Ngày hết hạn phải sau ngày nhận phòng" },
+  );
 
 export const checkOutSchema = z
   .object({

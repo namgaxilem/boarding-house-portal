@@ -24,10 +24,7 @@ import { bankAccountSchema, qrAccountSchema } from "./schema";
  * cần tới một lần build.
  */
 
-const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
-
-/** Ảnh QR chụp màn hình điện thoại luôn nhỏ hơn nhiều; đây là chốt chặn cuối. */
-const MAX_QR_BYTES = 2 * 1024 * 1024;
+import { PAYMENT_QR_POLICY as QR_POLICY, checkUploadFile } from "@/lib/upload-policy";
 
 /**
  * Cách nhận tiền hiện trên MỌI hoá đơn của MỌI người thuê, nên không có đường
@@ -75,12 +72,8 @@ export async function savePaymentAccount(
         if (!(file instanceof File) || file.size === 0) {
           return fail(describeError("PAYMENT_QR_REQUIRED", "Chọn ảnh QR để tải lên."));
         }
-        if (!ACCEPTED_TYPES.includes(file.type)) {
-          return fail("Ảnh QR phải là JPG, PNG hoặc WebP.");
-        }
-        if (file.size > MAX_QR_BYTES) {
-          return fail("Ảnh QR vượt quá 2MB. Chụp lại màn hình thay vì chụp ảnh giấy.");
-        }
+        const problem = checkUploadFile(file, QR_POLICY, "QR");
+        if (problem) return fail(problem);
 
         await db.createQrAccount(parsed.data, file);
       }

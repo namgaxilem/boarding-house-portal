@@ -12,12 +12,9 @@ import {
   type ActionResult,
 } from "@/lib/action-result";
 
+import { ID_PHOTO_POLICY as POLICY, checkUploadFile } from "@/lib/upload-policy";
+
 import { idDocumentSchema, rejectIdDocumentSchema } from "./schema";
-
-const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
-
-/** Trình duyệt đã thu nhỏ ảnh trước khi gửi; đây là chốt chặn cuối phía server. */
-const MAX_BYTES = 5 * 1024 * 1024;
 
 function revalidateIdentity() {
   revalidatePath("/me/identity");
@@ -70,12 +67,8 @@ export async function submitIdDocument(
     ["mặt trước", front],
     ["mặt sau", back],
   ] as const) {
-    if (!ACCEPTED_TYPES.includes(file.type)) {
-      return fail(`Ảnh ${label} không phải JPG/PNG/WebP.`);
-    }
-    if (file.size > MAX_BYTES) {
-      return fail(`Ảnh ${label} quá nặng. Chụp lại bằng chế độ thường, đừng dùng RAW.`);
-    }
+    const problem = checkUploadFile(file, POLICY, `${label} của thẻ`);
+    if (problem) return fail(problem);
   }
 
   try {

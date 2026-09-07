@@ -22,6 +22,7 @@ import { Field, FormMessage, fieldErrorsOf } from "@/components/common/form";
 import { parseCccdQr, type CccdData } from "@/lib/cccd";
 import { decodeQr, supportsCamera } from "@/lib/qr";
 import { resizeImage } from "@/lib/image";
+import { ID_PHOTO_POLICY as POLICY, acceptAttribute } from "@/lib/upload-policy";
 import { cn } from "@/lib/utils";
 
 import { submitIdDocument } from "../actions";
@@ -127,9 +128,14 @@ export function IdScanner({ suggestedName }: { suggestedName?: string }) {
     });
   }
 
-  /** Nén ảnh ngay trong máy rồi mới giữ lại — xem lib/image.ts. */
+  /**
+   * Nén ảnh ngay trong máy rồi mới giữ lại — xem lib/image.ts.
+   *
+   * `ID_PHOTO_POLICY` để chất lượng nhích cao hơn ảnh phòng: chủ trọ phải ĐỌC
+   * được số thẻ trên ảnh này, chứ không chỉ nhìn cho biết.
+   */
   async function prepare(file: File): Promise<Photo> {
-    const { file: resized } = await resizeImage(file);
+    const { file: resized } = await resizeImage(file, POLICY);
     return { file: resized, url: URL.createObjectURL(resized) };
   }
 
@@ -268,6 +274,8 @@ export function IdScanner({ suggestedName }: { suggestedName?: string }) {
       <input
         ref={qrFileRef}
         type="file"
+        // Ảnh này chỉ để DÒ mã QR trong máy. Nếu dò ra thì nó mới đi tiếp qua
+        // `prepare()` và bị nén như mọi ảnh khác, nên để rộng cũng không sao.
         accept="image/*"
         // `capture` mở thẳng camera chụp ảnh trên điện thoại; máy tính bỏ qua
         // thuộc tính này và mở hộp thoại chọn file như thường.
@@ -397,7 +405,11 @@ export function IdScanner({ suggestedName }: { suggestedName?: string }) {
         <input
           ref={frontRef}
           type="file"
-          accept="image/*"
+          // Hẹp lại từ "image/*": canvas không giải mã được HEIC, mà iPhone thì
+          // mặc định chụp HEIC. Khai đúng ba kiểu ảnh khiến iOS tự chuyển sang
+          // JPEG ngay ở bước chọn file, thay vì để `createImageBitmap` ném lỗi
+          // "Không nén được ảnh" sau đó.
+          accept={acceptAttribute(POLICY)}
           capture="environment"
           className="sr-only"
           onChange={(event) => onPickPhoto("front", event.target.files?.[0] ?? null)}
@@ -405,7 +417,7 @@ export function IdScanner({ suggestedName }: { suggestedName?: string }) {
         <input
           ref={backRef}
           type="file"
-          accept="image/*"
+          accept={acceptAttribute(POLICY)}
           capture="environment"
           className="sr-only"
           onChange={(event) => onPickPhoto("back", event.target.files?.[0] ?? null)}

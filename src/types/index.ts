@@ -44,7 +44,26 @@ export type NotificationType =
   | "invoice_due"
   | "maintenance_new"
   | "maintenance_update"
+  | "gate_alert"
+  | "gate_battery_low"
+  | "gate_fingerprint_new"
   | "general";
+
+/**
+ * Vòng đời một mã cổng.
+ *
+ * `pending` và `revoking` KHÔNG phải trạng thái chờ thụ động — chúng chính là
+ * hàng chờ của cron. Không có bảng job nào cả: việc còn nợ nằm ngay trong cột
+ * `status` của dòng dữ liệu.
+ */
+export type GatePasscodeStatus =
+  | "pending"
+  | "active"
+  | "revoking"
+  | "revoked"
+  | "failed";
+
+export type GatePasscodeKind = "tenant" | "guest" | "staff";
 
 export interface Profile {
   id: string;
@@ -88,6 +107,13 @@ export interface Tenancy {
   isPrimary: boolean;
   startDate: string;
   endDate: string | null;
+  /**
+   * Ngày hết hạn theo hợp đồng — DỰ ĐỊNH, khác `endDate` là ngày dọn đi THẬT.
+   *
+   * `null` với hợp đồng cũ ký trước khi có cột này, và với hợp đồng thuê không
+   * kỳ hạn. Dùng để chặn trên hạn hiệu lực của mã cổng và để nhắc gia hạn.
+   */
+  expectedEndDate: string | null;
   deposit: number;
   /** Snapshot of the rent agreed at signing. Never re-read from `Room`. */
   monthlyPrice: number;
@@ -266,6 +292,130 @@ export interface GateCredential {
   updatedBy: string | null;
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Khoá cổng thông minh (TTLock)                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Một ổ khoá vật lý.
+ *
+ * `batteryPercent` / `hasGateway` / `keyboardPwdVersion` là ảnh chụp của lần
+ * đồng bộ gần nhất, KHÔNG phải sự thật thời gian thực — luôn hiển thị kèm
+ * `lastSyncedAt`, nếu không chủ trọ sẽ tin một con số pin từ ba tuần trước.
+ */
+export interface GateLock {
+  id: string;
+  ttlockLockId: number;
+  name: string;
+  label: string | null;
+  mac: string | null;
+  /** `null` = cổng chung cả xóm. Có giá trị = khoá cửa một phòng cụ thể. */
+  roomId: string | null;
+  isPrimary: boolean;
+  /** >= 4 mới đặt được mã tự chọn; 3 thì phải xin mã từ cloud TTLock. */
+  keyboardPwdVersion: number | null;
+  hasGateway: boolean;
+  batteryPercent: number | null;
+  lastSyncedAt: string | null;
+  lastError: string | null;
+  createdAt: string;
+}
+
+export interface GatePasscode {
+  id: string;
+  lockId: string;
+  profileId: string;
+  tenancyId: string | null;
+  kind: GatePasscodeKind;
+  code: string;
+  /** Tên trên ổ khoá, dạng 'NT-P101-3f9a2c1b'. Xem `src/lib/gate.ts`. */
+  remoteName: string;
+  ttlockPasscodeId: number | null;
+  status: GatePasscodeStatus;
+  startAt: string;
+  endAt: string;
+  issuedAt: string | null;
+  revokedAt: string | null;
+  lastError: string | null;
+  attemptCount: number;
+  lastAttemptAt: string | null;
+  createdAt: string;
+}
+
+/** Mã kèm tên người và mã phòng — dạng dùng cho mọi bảng trong giao diện. */
+export interface GatePasscodeDetail extends GatePasscode {
+  tenantName: string;
+  roomCode: string | null;
+  /** Hợp đồng gắn với mã này còn hiệu lực không. Mã khách → `true`. */
+  tenancyActive: boolean;
+  expectedEndDate: string | null;
+}
+
+export interface GateFingerprint {
+  id: string;
+  lockId: string;
+  ttlockFingerprintId: number;
+  /** Tên ổ khoá tự báo. Thường vô nghĩa ('fingerprint 3'). */
+  remoteName: string | null;
+  /** `null` = ngăn lạ, chưa ai nhận. Đây là việc chủ trọ cần làm. */
+  profileId: string | null;
+  label: string | null;
+  note: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  removedAt: string | null;
+  updatedAt: string;
+}
+
+export interface GateFingerprintDetail extends GateFingerprint {
+  tenantName: string | null;
+  roomCode: string | null;
+}
+
+export interface GateEvent {
+  id: string;
+  lockId: string;
+  ttlockRecordId: number;
+  /** 1=app 3/12=gateway 4=mã bàn phím 7=thẻ từ 8=vân tay 10=chìa cơ 11=bluetooth */
+  recordType: number;
+  success: boolean;
+  remoteUsername: string | null;
+  profileId: string | null;
+  passcodeId: string | null;
+  fingerprintId: string | null;
+  occurredAt: string;
+}
+
+export interface GateEventDetail extends GateEvent {
+  tenantName: string | null;
+}
+
+/**
+ * Một người đã trả phòng mà sổ vẫn còn ghi mã cổng / ngăn vân tay của họ.
+ *
+ * Không phải một bảng — là kết quả của phép trừ "ai có ghi chép" trừ "ai còn ở".
+ * Việc phải làm bằng tay ngoài cổng; app chỉ có thể không cho quên.
+ */
+export interface GateCredentialToRevoke {
+  profileId: string;
+  fullName: string;
+  gateCode: string | null;
+  fingerprintSlot: string | null;
+  note: string | null;
+  /** Phòng ở lần cuối và ngày dọn đi, để chủ trọ nhớ ra người này là ai. */
+  lastRoomCode: string | null;
+  lastEndDate: string | null;
+}
+
+export interface IntegrationToken {
+  provider: string;
+  accessToken: string;
+  refreshToken: string | null;
+  expiresAt: string;
+  accountUid: string | null;
+  updatedAt: string;
+}
+
 /**
  * Một cách nhận tiền: số tài khoản gõ tay, hoặc ảnh QR tải lên.
  *
@@ -437,6 +587,15 @@ export interface AdminTodo {
   period: string;
   /** Mã phòng đang có người ở mà kỳ trên chưa ghi chỉ số điện nước. */
   roomsMissingReading: string[];
+  /**
+   * Người đã trả phòng mà mã cổng / ngăn vân tay vẫn còn ghi trong sổ.
+   *
+   * Cho tới trước khi có mục này, thứ DUY NHẤT chặn một người đã dọn đi khỏi cái
+   * cổng là chủ trọ tự nhớ ra — `endTenancy()` không đụng gì tới
+   * `gate_credentials`, và lời nhắc duy nhất là một câu chữ trong hộp thoại xoá.
+   * Một con số nằm lì trên thanh điều hướng thì không quên được.
+   */
+  gateCredentialsToRevoke: string[];
 }
 
 /** Một tháng trên báo cáo doanh thu. Tất cả suy ra từ bảng `invoices`. */
@@ -483,6 +642,13 @@ export interface RevenueReport {
   periods: RevenuePeriod[];
   rooms: RevenueByRoom[];
   totals: RevenueTotals;
+}
+
+/** Một dòng trong bảng dung lượng Storage — xem `storage_usage()`. */
+export interface StorageBucketUsage {
+  bucket: string;
+  objectCount: number;
+  totalBytes: number;
 }
 
 export interface SessionUser {

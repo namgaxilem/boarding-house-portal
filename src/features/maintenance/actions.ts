@@ -13,6 +13,10 @@ import {
   type ActionResult,
 } from "@/lib/action-result";
 import { notifyMaintenanceCreated, notifyMaintenanceUpdated } from "@/lib/notify";
+import {
+  MAINTENANCE_PHOTO_POLICY as PHOTO_POLICY,
+  checkUploadFile,
+} from "@/lib/upload-policy";
 
 import {
   adminRequestSchema,
@@ -287,15 +291,14 @@ export async function deleteRequest(formData: FormData): Promise<void> {
  *   2. Trình duyệt thu ảnh về ≤1600px / ~300–500KB rồi mới gửi.
  *   3. Server Action (dưới đây) kiểm lại kiểu và kích thước — Server Action là
  *      endpoint POST công khai, ai biết id cũng gọi được, không tin client.
- *   4. Bucket `maintenance-photos` chốt 5MB + đúng ba kiểu ảnh ở tầng Supabase.
+ *   4. Bucket `maintenance-photos` chốt `file_size_limit` + đúng ba kiểu ảnh ở
+ *      tầng Supabase.
  *
  * Bỏ tầng 3 thì tầng 1 và 2 chỉ là gợi ý.
+ *
+ * Cả bốn tầng đọc CHUNG một bộ số trong `lib/upload-policy.ts` — trước đây mỗi
+ * tầng tự khai lại, và không có gì buộc chúng khớp nhau.
  */
-const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
-const PHOTO_MAX_PER_UPLOAD = 5;
-/** Trần mỗi phiếu. Sáu tấm là quá đủ để tả một cái vòi hỏng. */
-const PHOTO_MAX_PER_REQUEST = 6;
 
 export async function uploadMaintenancePhotos(
   _prev: ActionResult<string> | null,
@@ -314,23 +317,19 @@ export async function uploadMaintenancePhotos(
     .filter((entry): entry is File => entry instanceof File && entry.size > 0);
 
   if (files.length === 0) return fail("Chưa chọn ảnh nào.");
-  if (files.length > PHOTO_MAX_PER_UPLOAD) {
-    return fail(`Mỗi lần tải tối đa ${PHOTO_MAX_PER_UPLOAD} ảnh.`);
+  if (files.length > PHOTO_POLICY.maxPerUpload) {
+    return fail(`Mỗi lần tải tối đa ${PHOTO_POLICY.maxPerUpload} ảnh.`);
   }
 
   for (const file of files) {
-    if (!PHOTO_TYPES.includes(file.type)) {
-      return fail(`"${file.name}" không phải ảnh JPG/PNG/WebP.`);
-    }
-    if (file.size > PHOTO_MAX_BYTES) {
-      return fail(`"${file.name}" vẫn quá nặng sau khi nén. Chụp lại hoặc chọn ảnh khác.`);
-    }
+    const problem = checkUploadFile(file, PHOTO_POLICY);
+    if (problem) return fail(problem);
   }
 
   const already = await db.countMaintenancePhotos(requestId);
-  if (already + files.length > PHOTO_MAX_PER_REQUEST) {
+  if (already + files.length > PHOTO_POLICY.maxPerParent) {
     return fail(
-      `Phiếu này đã có ${already} ảnh, tối đa ${PHOTO_MAX_PER_REQUEST}. Xoá bớt trước khi thêm.`,
+      `Phiếu này đã có ${already} ảnh, tối đa ${PHOTO_POLICY.maxPerParent}. Xoá bớt trước khi thêm.`,
     );
   }
 

@@ -5,12 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth/dal";
 import { db } from "@/lib/db";
 import { describeError, fail, ok, type ActionResult } from "@/lib/action-result";
-
-const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
-
-/** Trình duyệt đã resize trước khi gửi; đây là chốt chặn phía server. */
-const MAX_BYTES = 5 * 1024 * 1024;
-const MAX_PER_UPLOAD = 10;
+import { ROOM_PHOTO_POLICY as POLICY, checkUploadFile } from "@/lib/upload-policy";
 
 function revalidateRoom(roomId: string) {
   revalidatePath(`/admin/rooms/${roomId}`);
@@ -34,17 +29,25 @@ export async function uploadRoomPhotos(
     .filter((entry): entry is File => entry instanceof File && entry.size > 0);
 
   if (files.length === 0) return fail("Chưa chọn ảnh nào.");
-  if (files.length > MAX_PER_UPLOAD) {
-    return fail(`Mỗi lần tải tối đa ${MAX_PER_UPLOAD} ảnh.`);
+  if (files.length > POLICY.maxPerUpload) {
+    return fail(`Mỗi lần tải tối đa ${POLICY.maxPerUpload} ảnh.`);
   }
 
   for (const file of files) {
-    if (!ACCEPTED_TYPES.includes(file.type)) {
-      return fail(`"${file.name}" không phải ảnh JPG/PNG/WebP.`);
-    }
-    if (file.size > MAX_BYTES) {
-      return fail(`"${file.name}" vẫn quá nặng sau khi nén. Thử ảnh khác.`);
-    }
+    const problem = checkUploadFile(file, POLICY);
+    if (problem) return fail(problem);
+  }
+
+  // Trần TỔNG, không phải trần mỗi lượt.
+  //
+  // Trước đây chỉ có trần 10 ảnh mỗi lần gửi — bấm "Thêm ảnh" mười lần là có
+  // trăm tấm trong một phòng, và không có gì chặn. Trên gói 1GB miễn phí thì
+  // một phòng như vậy ăn hết phần của cả chục phòng khác.
+  const already = await db.countRoomPhotos(roomId);
+  if (already + files.length > POLICY.maxPerParent) {
+    return fail(
+      `Phòng này đã có ${already} ảnh, tối đa ${POLICY.maxPerParent}. Xoá bớt trước khi thêm.`,
+    );
   }
 
   // Tải tuần tự chứ không song song: `sort_order` được tính từ ảnh cuối hiện

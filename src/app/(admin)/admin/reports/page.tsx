@@ -23,6 +23,7 @@ import { EmptyState } from "@/components/common/empty-state";
 import { PageHeader } from "@/components/common/page-header";
 import { StatCard } from "@/components/common/stat-card";
 import { RevenueChart } from "@/features/dashboard/components/revenue-chart";
+import { StorageUsage } from "@/features/settings/components/storage-usage";
 import { getRevenueReport } from "@/features/dashboard/queries";
 import { formatCompactVND, formatMonthYear, formatNumber, formatVND } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -71,6 +72,13 @@ export default async function ReportsPage(props: PageProps<"/admin/reports">) {
 
       <Suspense key={months} fallback={<ReportSkeleton />}>
         <Report months={months} />
+      </Suspense>
+
+      {/* Suspense riêng: dung lượng đọc từ storage.objects qua RPC, chậm hơn và
+          không liên quan gì tới khoảng tháng đang chọn — để chung một ranh giới
+          với báo cáo doanh thu thì đổi khoảng tháng lại phải chờ cả hai. */}
+      <Suspense fallback={<Skeleton className="h-64 w-full rounded-xl" />}>
+        <StorageUsage />
       </Suspense>
     </div>
   );

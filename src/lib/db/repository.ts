@@ -3,6 +3,8 @@ import type {
   AdminTodo,
   AppNotification,
   GateCredential,
+  GateCredentialToRevoke,
+  GateLock,
   IdDocument,
   IdDocumentPhotos,
   IdDocumentWithTenant,
@@ -23,6 +25,7 @@ import type {
   RevenueReport,
   RoomPhoto,
   RoomWithPhotos,
+  StorageBucketUsage,
   Room,
   RoomEvent,
   RoomStatus,
@@ -87,6 +90,13 @@ export interface TenancyInput {
   tenantId: string;
   isPrimary: boolean;
   startDate: string;
+  /**
+   * Ngày hết hạn theo hợp đồng. Tuỳ chọn — thuê không kỳ hạn thì để trống.
+   *
+   * Khác `EndTenancyInput.endDate` là ngày dọn đi THẬT. Cột này chặn trên hạn
+   * hiệu lực của mã cổng, nên điền sai thì người thuê bị khoá ngoài cổng.
+   */
+  expectedEndDate: string | null;
   deposit: number;
   monthlyPrice: number;
 }
@@ -241,8 +251,17 @@ export interface Repository {
   deleteRoom(id: string): Promise<void>;
   listVacantRooms(): Promise<RoomWithPhotos[]>;
 
+  /* dung lượng Storage */
+  /**
+   * Số file và tổng byte theo từng bucket. Chỉ chủ trọ gọi được — hàm SQL
+   * `storage_usage()` tự chặn bằng `is_admin()`.
+   */
+  getStorageUsage(): Promise<StorageBucketUsage[]>;
+
   /* ảnh phòng */
   listRoomPhotos(roomId: string): Promise<RoomPhoto[]>;
+  /** Đếm để chặn trần tổng số ảnh mỗi phòng — xem ROOM_PHOTO_POLICY. */
+  countRoomPhotos(roomId: string): Promise<number>;
   /** Upload lên Storage rồi ghi lại một dòng. Trả về ảnh vừa thêm. */
   addRoomPhoto(roomId: string, file: File): Promise<RoomPhoto>;
   /** Xoá cả dòng trong bảng lẫn file trong bucket. */
@@ -405,6 +424,20 @@ export interface Repository {
     input: GateCredentialInput,
   ): Promise<GateCredential>;
   deleteGateCredential(profileId: string): Promise<void>;
+
+  /* ---------------- khoá cổng thông minh — chỉ chủ trọ và cron ------------- */
+
+  /**
+   * Người đã trả phòng mà ghi chép mã cổng vẫn còn.
+   *
+   * Đây là hàng chờ việc-phải-làm-tay quan trọng nhất của tính năng cổng, và nó
+   * chạy được ngay cả khi chưa có khoá thông minh nào: `endTenancy()` cố ý không
+   * xoá `gate_credentials` (xoá ghi chép không xoá được mã trên thiết bị, mà lại
+   * mất luôn thông tin ngăn nào cần xoá), nên thứ app làm được là đếm và nhắc.
+   */
+  listGateCredentialsToRevoke(): Promise<GateCredentialToRevoke[]>;
+
+  listGateLocks(): Promise<GateLock[]>;
 
   /* cách nhận tiền — số tài khoản và ảnh QR chủ trọ tự thêm */
   /** Mặc định chỉ trả về dòng đang bật; chỉ trang cài đặt mới cần cả dòng đã tắt. */

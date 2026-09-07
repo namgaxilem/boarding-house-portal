@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/common/form";
 import { uploadRoomPhotos } from "@/features/rooms/photo-actions";
 import { formatBytes, resizeImage } from "@/lib/image";
-
-const MAX_PER_UPLOAD = 10;
+import {
+  ROOM_PHOTO_POLICY as POLICY,
+  acceptAttribute,
+} from "@/lib/upload-policy";
 
 export function PhotoUploader({ roomId }: { roomId: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -24,8 +26,10 @@ export function PhotoUploader({ roomId }: { roomId: string }) {
     setLocalError(null);
     const files = Array.from(fileList);
 
-    if (files.length > MAX_PER_UPLOAD) {
-      setLocalError(`Mỗi lần tối đa ${MAX_PER_UPLOAD} ảnh. Bạn chọn ${files.length}.`);
+    if (files.length > POLICY.maxPerUpload) {
+      setLocalError(
+        `Mỗi lần tối đa ${POLICY.maxPerUpload} ảnh. Bạn chọn ${files.length}.`,
+      );
       return;
     }
 
@@ -37,7 +41,11 @@ export function PhotoUploader({ roomId }: { roomId: string }) {
     try {
       for (const [index, file] of files.entries()) {
         setStatus(`Đang nén ảnh ${index + 1}/${files.length}…`);
-        const { file: resized, originalBytes, resizedBytes } = await resizeImage(file);
+        const {
+          file: resized,
+          originalBytes,
+          resizedBytes,
+        } = await resizeImage(file, POLICY);
         savedBytes += originalBytes - resizedBytes;
         formData.append("photos", resized);
       }
@@ -77,7 +85,7 @@ export function PhotoUploader({ roomId }: { roomId: string }) {
       <input
         ref={inputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        accept={acceptAttribute(POLICY)}
         multiple
         className="sr-only"
         onChange={(event) => handleFiles(event.target.files)}

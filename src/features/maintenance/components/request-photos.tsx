@@ -12,6 +12,10 @@ import {
   uploadMaintenancePhotos,
 } from "@/features/maintenance/actions";
 import { formatBytes, resizeImage } from "@/lib/image";
+import {
+  MAINTENANCE_PHOTO_POLICY as POLICY,
+  acceptAttribute,
+} from "@/lib/upload-policy";
 import type { MaintenancePhoto } from "@/types";
 
 /**
@@ -22,17 +26,6 @@ import type { MaintenancePhoto } from "@/types";
  * chuyến đó.
  */
 
-const MAX_PER_UPLOAD = 5;
-const MAX_PER_REQUEST = 6;
-
-/**
- * Ngưỡng từ chối TRƯỚC khi giải mã ảnh.
- *
- * `resizeImage` gọi `createImageBitmap`, tức là giải nén cả tấm ảnh vào bộ nhớ.
- * Một file 60MB làm điện thoại tầm trung đứng hình hoặc tab sập — và người dùng
- * chỉ thấy app "hỏng", không thấy lý do. Chặn ở đây rẻ hơn nhiều.
- */
-const MAX_INPUT_BYTES = 25 * 1024 * 1024;
 
 export function RequestPhotos({
   requestId,
@@ -61,7 +54,7 @@ export function RequestPhotos({
   const [status, setStatus] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const remaining = MAX_PER_REQUEST - photos.length;
+  const remaining = POLICY.maxPerParent - photos.length;
 
   async function handleFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
@@ -69,21 +62,15 @@ export function RequestPhotos({
     setLocalError(null);
     const files = Array.from(fileList);
 
-    if (files.length > MAX_PER_UPLOAD) {
-      setLocalError(`Mỗi lần tối đa ${MAX_PER_UPLOAD} ảnh. Bạn chọn ${files.length}.`);
+    if (files.length > POLICY.maxPerUpload) {
+      setLocalError(
+        `Mỗi lần tối đa ${POLICY.maxPerUpload} ảnh. Bạn chọn ${files.length}.`,
+      );
       return;
     }
     if (files.length > remaining) {
       setLocalError(
-        `Phiếu này còn chỗ cho ${remaining} ảnh (tối đa ${MAX_PER_REQUEST}). Xoá bớt trước khi thêm.`,
-      );
-      return;
-    }
-
-    const tooBig = files.find((file) => file.size > MAX_INPUT_BYTES);
-    if (tooBig) {
-      setLocalError(
-        `"${tooBig.name}" nặng ${formatBytes(tooBig.size)} — quá lớn để xử lý trong máy. Chụp lại bằng camera điện thoại thay vì gửi ảnh gốc từ máy ảnh.`,
+        `Phiếu này còn chỗ cho ${remaining} ảnh (tối đa ${POLICY.maxPerParent}). Xoá bớt trước khi thêm.`,
       );
       return;
     }
@@ -95,7 +82,11 @@ export function RequestPhotos({
     try {
       for (const [index, file] of files.entries()) {
         setStatus(`Đang nén ảnh ${index + 1}/${files.length}…`);
-        const { file: resized, originalBytes, resizedBytes } = await resizeImage(file);
+        const {
+          file: resized,
+          originalBytes,
+          resizedBytes,
+        } = await resizeImage(file, POLICY);
         savedBytes += originalBytes - resizedBytes;
         formData.append("photos", resized);
       }
@@ -183,7 +174,7 @@ export function RequestPhotos({
           <input
             ref={inputRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp"
+            accept={acceptAttribute(POLICY)}
             multiple
             className="sr-only"
             onChange={(event) => handleFiles(event.target.files)}
@@ -203,14 +194,14 @@ export function RequestPhotos({
 
           <p className="text-xs text-muted-foreground">
             JPG, PNG hoặc WebP. Ảnh được thu nhỏ ngay trong máy bạn trước khi gửi, nên
-            chụp thẳng bằng điện thoại là được. Còn {remaining}/{MAX_PER_REQUEST} chỗ.
+            chụp thẳng bằng điện thoại là được. Còn {remaining}/{POLICY.maxPerParent} chỗ.
           </p>
         </>
       )}
 
       {canAttach && remaining <= 0 && (
         <p className="text-xs text-muted-foreground">
-          Đã đủ {MAX_PER_REQUEST} ảnh. Xoá bớt nếu muốn thêm ảnh khác.
+          Đã đủ {POLICY.maxPerParent} ảnh. Xoá bớt nếu muốn thêm ảnh khác.
         </p>
       )}
 

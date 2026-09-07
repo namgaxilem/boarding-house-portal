@@ -114,6 +114,9 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   invoice_due: "Nhắc đóng tiền",
   maintenance_new: "Báo hỏng mới",
   maintenance_update: "Cập nhật báo hỏng",
+  gate_alert: "Cảnh báo cổng",
+  gate_battery_low: "Khoá cổng sắp hết pin",
+  gate_fingerprint_new: "Vân tay mới ở cổng",
   general: "Thông báo",
 };
 

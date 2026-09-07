@@ -54,6 +54,21 @@ const nextConfig: NextConfig = {
         ]
       : [],
 
+    // Mỗi bề rộng trong hai mảng dưới đây là MỘT phiên bản ảnh riêng, và mỗi
+    // phiên bản lần đầu bị yêu cầu là một lần `next/image` tải nguyên ảnh gốc
+    // từ Supabase về để xử lý. Mặc định của Next là 8 bề rộng thiết bị + 7 bề
+    // rộng nhỏ = 15 lần tải cho MỘT tấm ảnh, trong khi gói miễn phí chỉ có 5GB
+    // băng thông mỗi tháng.
+    //
+    // Cắt còn đúng những mức mà bố cục thật sự dùng tới. Ảnh ở đây không bao
+    // giờ vượt 1600px (lib/image.ts thu về mức đó trước khi tải lên), nên
+    // 2048 và 3840 chỉ tổ phóng to một tấm ảnh vốn không có thêm chi tiết nào.
+    //
+    // Các mức `sizes` đang dùng trong app: 100vw / 50vw / 33vw / 45vw,
+    // 500px, 220px, 200px, 128px, 64px.
+    deviceSizes: [640, 828, 1080, 1600],
+    imageSizes: [64, 128, 220, 256, 384],
+
     // Next.js 16 chặn tối ưu ảnh từ IP nội bộ (thay đổi phá vỡ tương thích).
     // Supabase chạy local là 127.0.0.1:54321 nên sẽ bị chặn, `next/image` trả
     // 400 và ảnh không hiện.
@@ -61,6 +76,16 @@ const nextConfig: NextConfig = {
     // Chỉ mở khi host Supabase THỰC SỰ là địa chỉ nội bộ. Trỏ sang project
     // cloud (*.supabase.co) là cờ này tự tắt — không có cách nào quên.
     dangerouslyAllowLocalIP: supabase ? isLocalHostname(supabase.hostname) : false,
+
+    // KHÔNG đặt `minimumCacheTTL` ở đây, cố ý.
+    //
+    // Theo tài liệu Next 16, hạn dùng của một ảnh đã tối ưu là mức LỚN HƠN giữa
+    // `minimumCacheTTL` và `Cache-Control` của ảnh gốc. Mọi lần upload đều gửi
+    // kèm `cacheControl` một năm (xem `UPLOAD_CACHE_CONTROL` trong
+    // lib/db/supabase-adapter.ts) — đường dẫn file là uuid và không bao giờ bị
+    // ghi đè, nên nó bất biến thật.
+    //
+    // Khai lại ở đây chỉ tạo ra hai con số phải giữ cho khớp nhau.
   },
 
   experimental: {

@@ -12,6 +12,8 @@ import type {
   AdminTodo,
   AppNotification,
   GateCredential,
+  GateCredentialToRevoke,
+  GateLock,
   IdDocStatus,
   IdDocument,
   IdDocumentPhotos,
@@ -35,6 +37,7 @@ import type {
   RevenuePeriod,
   RevenueReport,
   Room,
+  StorageBucketUsage,
   RoomEvent,
   RoomPhoto,
   RoomStatus,
@@ -108,6 +111,7 @@ interface TenancyRow {
   is_primary: boolean;
   start_date: string;
   end_date: string | null;
+  expected_end_date: string | null;
   deposit: number | string;
   monthly_price: number | string;
   status: Tenancy["status"];
@@ -127,6 +131,13 @@ interface RoomEventRow {
   cost: number | string | null;
   occurred_at: string;
   created_by: string | null;
+}
+
+/** `storage_usage()` trả về bigint, PostgREST gói bigint thành chuỗi. */
+interface StorageUsageRow {
+  bucket: string;
+  object_count: number | string;
+  total_bytes: number | string;
 }
 
 interface RoomPhotoRow {
@@ -231,6 +242,22 @@ interface NotificationRow {
   created_at: string;
 }
 
+interface GateLockRow {
+  id: string;
+  ttlock_lock_id: number | string;
+  name: string;
+  label: string | null;
+  mac: string | null;
+  room_id: string | null;
+  is_primary: boolean;
+  keyboard_pwd_version: number | null;
+  has_gateway: boolean;
+  battery_percent: number | null;
+  last_synced_at: string | null;
+  last_error: string | null;
+  created_at: string;
+}
+
 interface GateCredentialRow {
   profile_id: string;
   gate_code: string | null;
@@ -330,6 +357,7 @@ function toTenancy(row: TenancyRow): Tenancy {
     isPrimary: row.is_primary,
     startDate: row.start_date,
     endDate: row.end_date,
+    expectedEndDate: row.expected_end_date,
     deposit: num(row.deposit),
     monthlyPrice: num(row.monthly_price),
     status: row.status,
@@ -562,6 +590,26 @@ function toNotification(row: NotificationRow): AppNotification {
   };
 }
 
+function toGateLock(row: GateLockRow): GateLock {
+  return {
+    id: row.id,
+    // `bigint` của Postgres về JS dưới dạng chuỗi khi vượt 2^53. lockId của
+    // TTLock chưa bao giờ lớn tới mức đó, nhưng ép kiểu ở đúng một chỗ thì rẻ.
+    ttlockLockId: Number(row.ttlock_lock_id),
+    name: row.name,
+    label: row.label,
+    mac: row.mac,
+    roomId: row.room_id,
+    isPrimary: row.is_primary,
+    keyboardPwdVersion: row.keyboard_pwd_version,
+    hasGateway: row.has_gateway,
+    batteryPercent: row.battery_percent,
+    lastSyncedAt: row.last_synced_at,
+    lastError: row.last_error,
+    createdAt: row.created_at,
+  };
+}
+
 function toGateCredential(row: GateCredentialRow): GateCredential {
   return {
     profileId: row.profile_id,
@@ -764,8 +812,164 @@ function rethrow(error: PostgrestError | null, fallback: string): never {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Storage helpers                                                           */
+/* -------------------------------------------------------------------------- */
+
+/** Đủ dùng cho các hàm dưới đây: cả client thường lẫn service role đều khớp. */
+type StorageClient = Pick<ReturnType<typeof createAdminClient>, "storage">;
+
+/**
+ * `Cache-Control` cho mọi file tải lên Storage.
+ *
+ * Đường dẫn file là `<id cha>/<uuid>.<ext>` và mọi lần upload đều kèm
+ * `upsert: false` — một đường dẫn đã ghi thì KHÔNG BAO GIỜ đổi nội dung. Sửa
+ * ảnh nghĩa là tạo uuid mới. Nên cache vĩnh viễn là đúng, không phải liều.
+ *
+ * Mặc định của Supabase là 3600 (một giờ). Với gói miễn phí 5GB băng thông mỗi
+ * tháng, để một giờ nghĩa là cùng một tấm ảnh phòng bị tải lại cả chục lần mỗi
+ * ngày cho mỗi người xem.
+ *
+ * Con số này còn ăn sang `next/image`: theo tài liệu Next 16, hạn của ảnh đã
+ * tối ưu là `max(minimumCacheTTL, Cache-Control của ảnh gốc)`. Đặt ở đây là đủ.
+ */
+const UPLOAD_CACHE_CONTROL = String(365 * 24 * 60 * 60);
+
+/** Tuỳ chọn dùng chung cho mọi `.upload()`. */
+function uploadOptions(file: File) {
+  return {
+    contentType: file.type,
+    cacheControl: UPLOAD_CACHE_CONTROL,
+    upsert: false,
+  };
+}
+
+/**
+ * Xoá file trong bucket, và KIỂM TRA là nó xoá thật.
+ *
+ * Storage của Supabase trả HTTP 200 kèm mảng RỖNG khi RLS chặn lệnh xoá — chứ
+ * không phải lỗi. Trước đây mọi chỗ gọi `.remove()` đều bỏ qua giá trị trả về,
+ * nên một lần dọn dẹp bị chặn quyền trông y hệt một lần dọn dẹp thành công:
+ * file nằm lại trong bucket vĩnh viễn, ăn dần 1GB miễn phí.
+ *
+ * `client` truyền vào được vì luồng xoá người thuê phải dùng service role —
+ * tài khoản bị xoá trước khi kịp dọn file của chính nó.
+ */
+async function removeObjects(
+  client: StorageClient,
+  bucket: string,
+  paths: string[],
+): Promise<void> {
+  if (paths.length === 0) return;
+
+  const { data, error } = await client.storage.from(bucket).remove(paths);
+  if (error) throw new Error(`Không xoá được ảnh trong ${bucket}: ${error.message}`);
+
+  if ((data?.length ?? 0) < paths.length) {
+    throw new Error(
+      `Chỉ xoá được ${data?.length ?? 0}/${paths.length} ảnh trong ${bucket} — nhiều khả năng RLS chặn.`,
+    );
+  }
+}
+
+/**
+ * Như `removeObjects`, nhưng KHÔNG ném lỗi — chỉ ghi log.
+ *
+ * Dùng ở hai chỗ mà ném lỗi sẽ hại nhiều hơn lợi:
+ *
+ * 1. Đường hoàn tác: upload xong nhưng ghi bảng hỏng. Ném lỗi ở đây sẽ thay
+ *    thông báo lỗi thật (ghi bảng hỏng) bằng một thông báo phụ, người dùng đọc
+ *    xong không hiểu chuyện gì.
+ * 2. Xoá ảnh lẻ: các hàm đó cố ý xoá DÒNG trước rồi mới xoá FILE — làm ngược
+ *    lại mà xoá dòng lỗi thì giao diện còn ảnh nhưng file đã mất, hiện ảnh vỡ.
+ *    Tới bước xoá file thì dòng đã biến mất, ném lỗi lúc này chỉ khiến người
+ *    dùng thấy thao tác "thất bại" trong khi không còn gì để thử lại.
+ *
+ * Đổi lại, dòng log là thứ duy nhất cho biết bucket đang rò. Nó nằm trong log
+ * của Vercel/Supabase, và đó là khác biệt so với trước: Storage trả HTTP 200
+ * nên trước đây KHÔNG có tín hiệu nào cả.
+ */
+async function removeObjectsBestEffort(
+  client: StorageClient,
+  bucket: string,
+  paths: string[],
+): Promise<void> {
+  try {
+    await removeObjects(client, bucket, paths);
+  } catch (error) {
+    console.error("[storage] dọn file thất bại", {
+      bucket,
+      paths,
+      message: (error as Error).message,
+    });
+  }
+}
+
+/**
+ * Dọn TOÀN BỘ file dưới một thư mục.
+ *
+ * Dùng khi xoá thực thể cha (phòng, người thuê): bảng con có `on delete
+ * cascade` nên các dòng tự biến mất, nhưng Storage không biết gì về khoá ngoại.
+ *
+ * Cố ý liệt kê từ Storage chứ không đọc `storage_path` trong bảng: nếu một lần
+ * upload trước đó ghi được file mà ghi bảng hỏng, file đó không có dòng nào trỏ
+ * tới — đọc bảng sẽ bỏ sót đúng những file rác cần dọn nhất.
+ *
+ * Không đọc được danh sách thì bỏ qua chứ không ném lỗi: file rác còn dọn tay
+ * được, còn một cái phòng không xoá nổi thì người dùng bó tay.
+ */
+async function removeFolder(
+  client: StorageClient,
+  bucket: string,
+  prefix: string,
+): Promise<void> {
+  const { data, error } = await client.storage
+    .from(bucket)
+    .list(prefix, { limit: 1000 });
+
+  if (error || !data || data.length === 0) return;
+
+  await removeObjects(
+    client,
+    bucket,
+    data.map((entry) => `${prefix}/${entry.name}`),
+  );
+}
+
+
+/* -------------------------------------------------------------------------- */
 /*  Shared read helpers                                                       */
 /* -------------------------------------------------------------------------- */
+
+/**
+ * Thứ tự phòng cho mọi danh sách: tầng trước, rồi tới số phòng.
+ *
+ * `rooms.code` là text vì có phòng không mang số ("Master" ở tầng trệt). Xếp
+ * thuần text thì "10" đứng ngay sau "1" và trước "2" — nhà này đánh số 1–10 nên
+ * lỗi đó lộ ra ở màn hình đầu tiên.
+ *
+ * Rút phần số ra so sánh bằng số; phòng không mang số (Master) xếp trước các
+ * phòng đánh số cùng tầng, vì tầng trệt vốn đứng đầu danh sách.
+ *
+ * Hàm SQL `vacant_rooms()` xếp theo ĐÚNG quy tắc này ở phía database — sửa một
+ * bên thì phải sửa bên kia.
+ */
+function roomCodeNumber(code: string): number | null {
+  const digits = code.replace(/\D/g, "");
+  return digits === "" ? null : Number(digits);
+}
+
+function compareRooms(a: Room, b: Room): number {
+  if (a.floor !== b.floor) return a.floor - b.floor;
+
+  const na = roomCodeNumber(a.code);
+  const nb = roomCodeNumber(b.code);
+  if (na === null && nb === null) return a.code.localeCompare(b.code, "vi");
+  if (na === null) return -1;
+  if (nb === null) return 1;
+  if (na !== nb) return na - nb;
+
+  return a.code.localeCompare(b.code, "vi");
+}
 
 /**
  * Occupancy is derived, never stored.
@@ -789,13 +993,16 @@ function effectiveStatus(room: Room, activeCount: number): RoomStatus {
 async function loadRoomsWithOccupancy(roomIds?: string[]) {
   const supabase = await createClient();
 
-  let roomQuery = supabase.from("rooms").select("*").order("code");
+  // KHÔNG dùng `.order("code")`: `code` là text, nên Postgres xếp "10" ngay sau
+  // "1" và trước "2". Nhà này đánh số phòng 1–10 nên lỗi đó lộ ra ngay ở danh
+  // sách đầu tiên. PostgREST không nhận biểu thức trong `order`, nên sắp ở đây.
+  let roomQuery = supabase.from("rooms").select("*");
   if (roomIds) roomQuery = roomQuery.in("id", roomIds);
 
   const { data: roomRows, error: roomError } = await roomQuery;
   if (roomError) rethrow(roomError, "Không đọc được danh sách phòng");
 
-  const rooms = (roomRows as RoomRow[]).map(toRoom);
+  const rooms = (roomRows as RoomRow[]).map(toRoom).sort(compareRooms);
   if (rooms.length === 0) return [];
 
   const { data: tenancyRows, error: tenancyError } = await supabase
@@ -912,6 +1119,13 @@ export const supabaseAdapter: Repository = {
     if (countError) rethrow(countError, "Không kiểm tra được hợp đồng của phòng");
     if ((count ?? 0) > 0) throw new Error("ROOM_OCCUPIED");
 
+    // Ảnh đi theo: `room_photos.room_id` có ON DELETE CASCADE nên các dòng tự
+    // biến mất, nhưng FILE trong bucket thì không — Storage không biết gì về
+    // khoá ngoại. Dọn file TRƯỚC, rồi mới xoá phòng: dọn hỏng thì phòng vẫn còn
+    // đó và còn đường làm lại, chứ xoá phòng trước là mất luôn manh mối
+    // `${id}/` để tìm ra đống file rác.
+    await removeFolder(supabase, ROOM_PHOTO_BUCKET, id);
+
     const { error } = await supabase.from("rooms").delete().eq("id", id);
     if (error) rethrow(error, "Không xoá được phòng");
   },
@@ -960,6 +1174,33 @@ export const supabaseAdapter: Repository = {
     return (data as RoomPhotoRow[]).map(toRoomPhoto);
   },
 
+  async getStorageUsage(): Promise<StorageBucketUsage[]> {
+    const supabase = await createClient();
+
+    // RPC chứ không phải select: `storage.objects` không mở cho
+    // `authenticated`, và cũng không nên mở — một lệnh select trần trên bảng
+    // đó là danh sách toàn bộ đường dẫn ảnh CCCD của mọi người thuê. Hàm SQL
+    // chỉ trả về số đếm và tổng byte.
+    const { data, error } = await supabase.rpc("storage_usage");
+    if (error) rethrow(error, "Không đọc được dung lượng đã dùng");
+
+    return ((data ?? []) as StorageUsageRow[]).map((row) => ({
+      bucket: row.bucket,
+      objectCount: num(row.object_count),
+      totalBytes: num(row.total_bytes),
+    }));
+  },
+
+  async countRoomPhotos(roomId) {
+    const supabase = await createClient();
+    const { count, error } = await supabase
+      .from("room_photos")
+      .select("id", { count: "exact", head: true })
+      .eq("room_id", roomId);
+    if (error) rethrow(error, "Không đếm được ảnh phòng");
+    return count ?? 0;
+  },
+
   async addRoomPhoto(roomId, file) {
     const supabase = await createClient();
 
@@ -970,7 +1211,7 @@ export const supabaseAdapter: Repository = {
 
     const { error: uploadError } = await supabase.storage
       .from(ROOM_PHOTO_BUCKET)
-      .upload(storagePath, file, { contentType: file.type, upsert: false });
+      .upload(storagePath, file, uploadOptions(file));
 
     if (uploadError) {
       throw new Error(
@@ -1001,7 +1242,7 @@ export const supabaseAdapter: Repository = {
 
     if (error) {
       // Ghi bảng hỏng thì file vừa lên thành rác vĩnh viễn — dọn ngay.
-      await supabase.storage.from(ROOM_PHOTO_BUCKET).remove([storagePath]);
+      await removeObjectsBestEffort(supabase, ROOM_PHOTO_BUCKET, [storagePath]);
       rethrow(error, "Không lưu được ảnh");
     }
 
@@ -1024,9 +1265,9 @@ export const supabaseAdapter: Repository = {
 
     // Xoá file SAU khi xoá dòng: nếu làm ngược lại mà xoá dòng lỗi thì giao diện
     // còn ảnh nhưng file đã mất, hiện ra ảnh vỡ.
-    await supabase.storage
-      .from(ROOM_PHOTO_BUCKET)
-      .remove([photo.storage_path as string]);
+    await removeObjectsBestEffort(supabase, ROOM_PHOTO_BUCKET, [
+      photo.storage_path as string,
+    ]);
   },
 
   async setRoomCoverPhoto(photoId) {
@@ -1169,7 +1410,7 @@ export const supabaseAdapter: Repository = {
 
       const { error } = await supabase.storage
         .from(ID_PHOTO_BUCKET)
-        .upload(storagePath, file, { contentType: file.type, upsert: false });
+        .upload(storagePath, file, uploadOptions(file));
 
       if (error) {
         throw new Error(
@@ -1185,9 +1426,7 @@ export const supabaseAdapter: Repository = {
 
     /** Ảnh đã lên mà bước sau hỏng thì chúng thành rác vĩnh viễn trong bucket. */
     async function cleanup() {
-      if (uploaded.length > 0) {
-        await supabase.storage.from(ID_PHOTO_BUCKET).remove(uploaded);
-      }
+      await removeObjectsBestEffort(supabase, ID_PHOTO_BUCKET, uploaded);
     }
 
     let frontPath: string | null = null;
@@ -1246,7 +1485,7 @@ export const supabaseAdapter: Repository = {
       (path): path is string => Boolean(path),
     );
     if (paths.length > 0) {
-      await supabase.storage.from(ID_PHOTO_BUCKET).remove(paths);
+      await removeObjectsBestEffort(supabase, ID_PHOTO_BUCKET, paths);
     }
   },
 
@@ -1523,8 +1762,20 @@ export const supabaseAdapter: Repository = {
     if (countError) rethrow(countError, "Không kiểm tra được hợp đồng");
     if ((count ?? 0) > 0) throw new Error("TENANT_HAS_ACTIVE_TENANCY");
 
-    // Deleting the auth user cascades to `profiles` and `tenancies`.
     const admin = createAdminClient();
+
+    // Ảnh CCCD phải dọn TRƯỚC khi xoá tài khoản, và phải dọn bằng service role.
+    //
+    // Hai lý do, cả hai đều bắt buộc:
+    // 1. Policy `id_photos_delete` so `foldername(name)[1]` với `auth.uid()`
+    //    hoặc `is_admin()`. Xoá tài khoản xong thì không còn ai "sở hữu" thư
+    //    mục đó nữa — file kẹt lại vĩnh viễn, không API nào chạm tới được.
+    // 2. Đây là ảnh giấy tờ tuỳ thân. Nghị định 13/2023 buộc xoá dữ liệu cá
+    //    nhân khi chủ thể không còn quan hệ với mình; để lại là vi phạm, chứ
+    //    không chỉ là tốn dung lượng.
+    await removeFolder(admin, ID_PHOTO_BUCKET, id);
+
+    // Deleting the auth user cascades to `profiles` and `tenancies`.
     const { error } = await admin.auth.admin.deleteUser(id);
     if (error) throw new Error(error.message);
   },
@@ -1671,6 +1922,7 @@ export const supabaseAdapter: Repository = {
         tenant_id: input.tenantId,
         is_primary: input.isPrimary,
         start_date: input.startDate,
+        expected_end_date: input.expectedEndDate,
         deposit: input.deposit,
         monthly_price: input.monthlyPrice,
         status: "active",
@@ -2214,6 +2466,89 @@ export const supabaseAdapter: Repository = {
     if (error) rethrow(error, "Không xoá được mã cổng");
   },
 
+  /* ------------------------------------------- khoá cổng thông minh */
+
+  async listGateCredentialsToRevoke(): Promise<GateCredentialToRevoke[]> {
+    const supabase = await createClient();
+
+    // Hai truy vấn rồi trừ nhau trong JS, không phải một truy vấn lồng.
+    // PostgREST không có "not exists" trên bảng khác, và với mười phòng thì hai
+    // mảng vài chục phần tử so nhau rẻ hơn hẳn một view mới phải nuôi.
+    const [notes, tenancies] = await Promise.all([
+      supabase
+        .from("gate_credentials")
+        // `profiles!<tên khoá ngoại>`, không phải `profiles(...)`.
+        //
+        // `gate_credentials` có HAI khoá ngoại trỏ sang `profiles`:
+        // `profile_id` (chủ của mã cổng) và `updated_by` (ai sửa lần cuối).
+        // Viết `profiles(full_name)` thì PostgREST không biết chọn đường nào và
+        // trả lỗi "more than one relationship was found" — cả trang /admin/gate
+        // chết. Ba chỗ khác trong file này đã theo đúng lối: xem
+        // `profiles!invoices_tenant_id_fkey`, `profiles!id_documents_profile_id_fkey`.
+        .select(
+          "profile_id, gate_code, fingerprint_slot, note, profiles!gate_credentials_profile_id_fkey(full_name)",
+        ),
+      supabase
+        .from("tenancies")
+        .select("tenant_id, end_date, rooms(code)")
+        .order("start_date", { ascending: false }),
+    ]);
+    if (notes.error) rethrow(notes.error, "Không đọc được ghi chép mã cổng");
+    if (tenancies.error) rethrow(tenancies.error, "Không đọc được lịch sử thuê");
+
+    type TenancyLite = {
+      tenant_id: string;
+      end_date: string | null;
+      rooms: { code: string } | { code: string }[] | null;
+    };
+    const rows = (tenancies.data ?? []) as TenancyLite[];
+
+    const stillLiving = new Set(
+      rows.filter((row) => row.end_date === null).map((row) => row.tenant_id),
+    );
+    // Hợp đồng gần nhất của mỗi người — đã sắp giảm dần theo start_date ở trên,
+    // nên lần gặp đầu tiên là lần gần nhất.
+    const lastTenancy = new Map<string, TenancyLite>();
+    for (const row of rows) {
+      if (!lastTenancy.has(row.tenant_id)) lastTenancy.set(row.tenant_id, row);
+    }
+
+    return ((notes.data ?? []) as {
+      profile_id: string;
+      gate_code: string | null;
+      fingerprint_slot: string | null;
+      note: string | null;
+      profiles: { full_name: string } | { full_name: string }[] | null;
+    }[])
+      .filter((row) => !stillLiving.has(row.profile_id))
+      .map((row) => {
+        const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+        const last = lastTenancy.get(row.profile_id);
+        const room = Array.isArray(last?.rooms) ? last?.rooms[0] : last?.rooms;
+        return {
+          profileId: row.profile_id,
+          fullName: profile?.full_name ?? "Không rõ tên",
+          gateCode: row.gate_code,
+          fingerprintSlot: row.fingerprint_slot,
+          note: row.note,
+          lastRoomCode: room?.code ?? null,
+          lastEndDate: last?.end_date ?? null,
+        };
+      })
+      .sort((a, b) => (b.lastEndDate ?? "").localeCompare(a.lastEndDate ?? ""));
+  },
+
+  async listGateLocks(): Promise<GateLock[]> {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("gate_locks")
+      .select("*")
+      .order("is_primary", { ascending: false })
+      .order("created_at");
+    if (error) rethrow(error, "Không đọc được danh sách khoá");
+    return ((data ?? []) as GateLockRow[]).map(toGateLock);
+  },
+
   /* ------------------------------------------------------------ dashboard */
 
   /* ------------------------------------------------------ cách nhận tiền */
@@ -2278,7 +2613,7 @@ export const supabaseAdapter: Repository = {
 
     const { error: uploadError } = await supabase.storage
       .from(PAYMENT_QR_BUCKET)
-      .upload(storagePath, file, { contentType: file.type, upsert: false });
+      .upload(storagePath, file, uploadOptions(file));
 
     if (uploadError) {
       throw new Error(
@@ -2303,7 +2638,7 @@ export const supabaseAdapter: Repository = {
 
     if (error) {
       // Ghi bảng hỏng thì file vừa lên thành rác vĩnh viễn — dọn ngay.
-      await supabase.storage.from(PAYMENT_QR_BUCKET).remove([storagePath]);
+      await removeObjectsBestEffort(supabase, PAYMENT_QR_BUCKET, [storagePath]);
       rethrow(error, "Không lưu được ảnh QR");
     }
 
@@ -2353,7 +2688,7 @@ export const supabaseAdapter: Repository = {
     // Xoá file SAU khi xoá dòng, cùng lý do như ảnh phòng: làm ngược lại mà xoá
     // dòng hỏng thì giao diện còn thẻ QR nhưng ảnh đã mất.
     if (current.qrPath) {
-      await supabase.storage.from(PAYMENT_QR_BUCKET).remove([current.qrPath]);
+      await removeObjectsBestEffort(supabase, PAYMENT_QR_BUCKET, [current.qrPath]);
     }
   },
 
@@ -2543,9 +2878,11 @@ export const supabaseAdapter: Repository = {
     // về khoá ngoại. Dọn file trước, rồi mới xoá phiếu.
     const paths = await supabaseAdapter.listMaintenancePhotos(id);
     if (paths.length > 0) {
-      await supabase.storage
-        .from(MAINTENANCE_PHOTO_BUCKET)
-        .remove(paths.map((photo) => photo.storagePath));
+      await removeObjects(
+        supabase,
+        MAINTENANCE_PHOTO_BUCKET,
+        paths.map((photo) => photo.storagePath),
+      );
     }
 
     const { error } = await supabase.from("maintenance_requests").delete().eq("id", id);
@@ -2608,7 +2945,7 @@ export const supabaseAdapter: Repository = {
 
     const { error: uploadError } = await supabase.storage
       .from(MAINTENANCE_PHOTO_BUCKET)
-      .upload(storagePath, file, { contentType: file.type, upsert: false });
+      .upload(storagePath, file, uploadOptions(file));
 
     if (uploadError) {
       throw new Error(
@@ -2630,7 +2967,7 @@ export const supabaseAdapter: Repository = {
 
     if (error) {
       // Ghi bảng hỏng thì file vừa lên thành rác vĩnh viễn — dọn ngay.
-      await supabase.storage.from(MAINTENANCE_PHOTO_BUCKET).remove([storagePath]);
+      await removeObjectsBestEffort(supabase, MAINTENANCE_PHOTO_BUCKET, [storagePath]);
       rethrow(error, "Không lưu được ảnh đính kèm");
     }
 
@@ -2664,9 +3001,9 @@ export const supabaseAdapter: Repository = {
     if (error) rethrow(error, "Không xoá được ảnh");
     if ((deleted ?? []).length === 0) throw new Error("MAINTENANCE_PHOTO_FORBIDDEN");
 
-    await supabase.storage
-      .from(MAINTENANCE_PHOTO_BUCKET)
-      .remove([photo.storage_path as string]);
+    await removeObjectsBestEffort(supabase, MAINTENANCE_PHOTO_BUCKET, [
+      photo.storage_path as string,
+    ]);
   },
 
   /* -------------------------------------------------- dashboard + báo cáo */
@@ -2677,7 +3014,7 @@ export const supabaseAdapter: Repository = {
     // mỗi tối 17:00–24:00 giờ Việt Nam sẽ đếm thừa một ngày hoá đơn "quá hạn".
     const today = todayInHouseTz();
 
-    const [overdue, drafts, pendingIds, maintenance, rooms, readings] = await Promise.all([
+    const [overdue, drafts, pendingIds, maintenance, rooms, readings, gateNotes] = await Promise.all([
       supabase
         .from("invoices")
         .select("total")
@@ -2695,6 +3032,13 @@ export const supabaseAdapter: Repository = {
         .in("status", ["open", "in_progress"]),
       loadRoomsWithOccupancy(),
       supabase.from("meter_readings").select("room_id").eq("period", period),
+      // Ai còn ghi chép mã cổng trong sổ. Lọc ra người đã trả phòng ở dưới —
+      // lọc ở đây được thì tốt, nhưng PostgREST không có "not exists" trên một
+      // bảng khác, và mười phòng thì hai mảng nhỏ so nhau trong JS là đủ.
+      // Chỉ rõ khoá ngoại — xem lý do ở listGateCredentialsToRevoke.
+      supabase
+        .from("gate_credentials")
+        .select("profile_id, profiles!gate_credentials_profile_id_fkey(full_name)"),
     ]);
 
     if (overdue.error) rethrow(overdue.error, "Không đọc được hoá đơn quá hạn");
@@ -2707,6 +3051,28 @@ export const supabaseAdapter: Repository = {
       ((readings.data ?? []) as { room_id: string }[]).map((row) => row.room_id),
     );
 
+    // Người đã trả phòng mà sổ vẫn còn ghi mã cổng / ngăn vân tay của họ.
+    //
+    // `endTenancy()` KHÔNG đụng tới `gate_credentials` — cố ý, vì xoá ghi chép
+    // trong app không xoá được mã trên thiết bị ở cổng, và một dòng biến mất
+    // lặng lẽ còn tệ hơn: chủ trọ mất luôn thông tin "ngăn số mấy" cần xoá.
+    // Nên thay vì xoá, đếm. Con số này nằm trên thanh điều hướng cho tới khi có
+    // người ra cổng xử lý thật.
+    const stillLiving = new Set(
+      rooms.flatMap((room) => room.occupants.map((o) => o.tenant.id)),
+    );
+    const gateRows = (gateNotes.data ?? []) as {
+      profile_id: string;
+      profiles: { full_name: string } | { full_name: string }[] | null;
+    }[];
+    const gateCredentialsToRevoke = gateRows
+      .filter((row) => !stillLiving.has(row.profile_id))
+      .map((row) => {
+        const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+        return profile?.full_name ?? "Không rõ tên";
+      })
+      .sort((a, b) => a.localeCompare(b, "vi"));
+
     return {
       overdueInvoices: overdueRows.length,
       overdueAmount: overdueRows.reduce((sum, row) => sum + num(row.total), 0),
@@ -2718,6 +3084,7 @@ export const supabaseAdapter: Repository = {
       roomsMissingReading: rooms
         .filter((room) => room.occupants.length > 0 && !recorded.has(room.id))
         .map((room) => room.code),
+      gateCredentialsToRevoke,
     };
   },
 

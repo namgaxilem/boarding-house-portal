@@ -31,6 +31,10 @@ import {
   togglePaymentAccount,
 } from "@/features/payments/actions";
 import { formatBytes, resizeImage } from "@/lib/image";
+import {
+  PAYMENT_QR_POLICY as QR_POLICY,
+  acceptAttribute,
+} from "@/lib/upload-policy";
 import type { PaymentAccount } from "@/types";
 
 /**
@@ -215,15 +219,6 @@ function MoveButton({
   );
 }
 
-/**
- * Ngưỡng nén ảnh QR.
- *
- * Ảnh chụp màn hình app ngân hàng luôn dưới mức này và được giữ NGUYÊN BẢN — mã
- * QR là ảnh nét cạnh, nén lại chỉ có hại. Chỉ ảnh chụp bằng camera (một tờ QR
- * dán ở quầy) mới vượt ngưỡng, và ảnh đó thì cần thu nhỏ thật.
- */
-const QR_RESIZE_THRESHOLD = 1024 * 1024;
-
 function PaymentForm({
   account,
   kind,
@@ -374,22 +369,28 @@ function QrPicker({ errors }: { errors: Record<string, string[]> }) {
 
     setLocalError(null);
 
+    // LUÔN nén, không còn ngưỡng "dưới 1MB thì giữ nguyên bản".
+    //
+    // Ngưỡng cũ nghe hợp lý — mã QR là ảnh nét cạnh, nén mạnh làm nhoè và máy
+    // quét đọc sai — nhưng nó bỏ lọt đúng trường hợp phổ biến nhất: ảnh chụp
+    // màn hình app ngân hàng. Đó là PNG, thường 700–900KB, và cùng nội dung ấy
+    // ở WebP chỉ khoảng 40KB. Chúng nằm lại trong bucket ở dạng gần 1MB.
+    //
+    // Cách đúng không phải là bỏ nén, mà là nén bằng thông số dành riêng cho
+    // QR: chất lượng rất cao (0.92) để giữ cạnh sắc, bù lại kích thước nhỏ
+    // (1000px — một mã QR vốn chỉ 300–600px). Xem PAYMENT_QR_POLICY.
     let file = original;
-    if (original.size > QR_RESIZE_THRESHOLD) {
-      setStatus("Đang thu nhỏ ảnh…");
-      try {
-        const resized = await resizeImage(original);
-        file = resized.file;
-        setStatus(
-          `Đã thu nhỏ ${formatBytes(resized.originalBytes)} → ${formatBytes(resized.resizedBytes)}.`,
-        );
-      } catch (error) {
-        setStatus(null);
-        setLocalError((error as Error).message);
-        return;
-      }
-    } else {
+    setStatus("Đang thu nhỏ ảnh…");
+    try {
+      const resized = await resizeImage(original, QR_POLICY);
+      file = resized.file;
+      setStatus(
+        `Đã thu nhỏ ${formatBytes(resized.originalBytes)} → ${formatBytes(resized.resizedBytes)}.`,
+      );
+    } catch (error) {
       setStatus(null);
+      setLocalError((error as Error).message);
+      return;
     }
 
     const transfer = new DataTransfer();
@@ -429,7 +430,7 @@ function QrPicker({ errors }: { errors: Record<string, string[]> }) {
             id="qr"
             name="qr"
             type="file"
-            accept="image/jpeg,image/png,image/webp"
+            accept={acceptAttribute(QR_POLICY)}
             className="sr-only"
             onChange={(event) => handleFile(event.target.files)}
           />

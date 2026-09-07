@@ -31,9 +31,13 @@ cp .env.example .env.local
 Tạo tài khoản chủ trọ đầu tiên rồi khởi động app:
 
 ```bash
-npm run create-admin -- admin@nhatro.vn Admin@12345 "Nguyễn Văn Tâm"
+npm run create-admin -- ban@example.com "mat-khau-manh" "Tên Chủ Trọ"
 npm run dev
 ```
+
+> Mật khẩu là tham số dòng lệnh, không lưu ở đâu trong repo — database chỉ giữ
+> bcrypt hash. Đừng dán mật khẩu thật vào file này: README có commit, còn tài
+> khoản chủ trọ mở được toàn bộ hồ sơ người thuê và ảnh CCCD.
 
 | Thứ | Địa chỉ |
 | --- | --- |
@@ -72,37 +76,97 @@ Dữ liệu **động** (phòng, người thuê, hợp đồng, wifi, **cách nh
 
 ## 3. Deploy lên Supabase cloud
 
-Local dùng Docker; lên thật thì trỏ sang project cloud.
+Local dùng Docker; lên thật thì trỏ sang project cloud. Toàn bộ schema, RLS,
+bucket ảnh và 11 phòng đều nằm trong `supabase/`, nên không phải bấm gì trong
+dashboard ngoài việc tạo project.
 
-### 3.1 Tạo project và đẩy schema
+### 3.1 Tạo project
 
-1. Tạo project tại [supabase.com](https://supabase.com) (free tier).
-2. Liên kết và đẩy migration:
+Tạo project tại [supabase.com](https://supabase.com) (free tier đủ dùng: 1GB
+Storage, 5GB băng thông/tháng — xem mục dung lượng ở `/admin/reports`).
+
+Ghi lại hai thứ:
+
+| Thứ | Lấy ở đâu |
+| --- | --- |
+| **project ref** | phần `<ref>` trong `https://<ref>.supabase.co`, hoặc Project Settings → General |
+| **mật khẩu Postgres** | đặt lúc tạo project. Quên thì Project Settings → Database → Reset database password. **KHÔNG** phải mật khẩu đăng nhập supabase.com |
+
+> Project mới phải là **rỗng**. `db push` giả định database chưa có bảng nào của
+> app; đẩy vào project đã có schema khác là gặp lỗi trùng tên giữa đường, và khi
+> đó một nửa migration đã chạy.
+
+### 3.2 Liên kết và đẩy schema + dữ liệu
 
 ```bash
-npx supabase link --project-ref <project-ref>
-npx supabase db push
+npx supabase link --project-ref <ref>          # hỏi mật khẩu Postgres
+npx supabase db push --linked --include-seed   # 12 migration + seed.sql
+npx supabase config push                        # đẩy cấu hình auth
 ```
 
-Hoặc thủ công: mở **SQL Editor** rồi chạy lần lượt **tất cả** file trong `supabase/migrations/` theo đúng thứ tự tên (0001 → 0009), sau đó `supabase/seed.sql` nếu muốn 10 phòng mẫu. Bỏ sót một file là thiếu bảng, và lỗi sẽ hiện ra ở một trang bất ngờ chứ không phải lúc chạy SQL.
+`db push` chạy **tất cả** file trong `supabase/migrations/` theo thứ tự tên, và
+`--include-seed` chạy thêm `supabase/seed.sql` (`[db.seed]` trong `config.toml`
+đã bật). Bỏ `--include-seed` thì có schema nhưng **không có phòng nào**.
 
-> Migration 0008 và 0009 tạo cả **bucket `payment-qr`** và **`maintenance-photos`**. Chạy bằng `supabase db push` thì bucket được tạo tự động; dán tay vào SQL Editor cũng vậy, vì lệnh `insert into storage.buckets` nằm ngay trong các file đó.
+Xem trước mà không đẩy thật: thêm `--dry-run`.
 
-### 3.2 Điền biến môi trường
+Ba thứ `db push` tạo ra mà dễ tưởng là phải làm tay:
 
-Lấy giá trị tại **Project Settings → API**:
+- **4 bucket ảnh** — `room-photos`, `id-photos`, `payment-qr`,
+  `maintenance-photos`, kèm `file_size_limit` và danh sách MIME. Lệnh
+  `insert into storage.buckets` nằm ngay trong migration.
+- **Policy RLS trên `storage.objects`** — ai đọc/ghi được ảnh nào.
+- **11 phòng + 4 wifi** từ `seed.sql`.
+
+`config push` đẩy khối `[auth]` của `config.toml` lên, quan trọng nhất là
+`enable_signup = false` — **chặn người ngoài tự đăng ký tài khoản**. Không chạy
+lệnh này thì phải tự tắt tại Authentication → Sign In / Providers, nếu không bất
+kỳ ai cũng tạo được tài khoản trên portal của bạn.
+
+Nó cũng đẩy `site_url` và `additional_redirect_urls`, đang trỏ
+`http://localhost:3000`. Khi deploy domain thật thì sửa `supabase/config.toml`
+rồi chạy lại `config push`.
+
+Không dùng CLI được thì mở **SQL Editor** và chạy lần lượt **tất cả** file trong
+`supabase/migrations/` theo đúng thứ tự tên, sau đó `supabase/seed.sql`. Bỏ sót
+một file là thiếu bảng, và lỗi hiện ra ở một trang bất ngờ chứ không phải lúc
+chạy SQL.
+
+### 3.3 Điền biến môi trường
+
+Sao chép `.env.example` thành `.env.local` rồi lấy giá trị tại
+**Project Settings → API Keys**:
 
 | Biến | Lấy ở đâu |
 | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon / public key |
-| `SUPABASE_SERVICE_ROLE_KEY` | service_role key — **bí mật** |
+| `NEXT_PUBLIC_SUPABASE_URL` | Project URL — `https://<ref>.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `anon` — dashboard mới gọi là **Publishable key** (`sb_publishable_...`) |
+| `SUPABASE_SERVICE_ROLE_KEY` | `service_role` — dashboard mới gọi là **Secret key** (`sb_secret_...`). **bí mật** |
 
 > 🔒 `SUPABASE_SERVICE_ROLE_KEY` **không bao giờ** được đặt tiền tố `NEXT_PUBLIC_`. Biến `NEXT_PUBLIC_*` bị nhúng thẳng vào bundle JavaScript gửi xuống trình duyệt; lộ key này là lộ toàn quyền database, bỏ qua mọi RLS.
 
-### 3.3 Tạo tài khoản chủ trọ đầu tiên
+> ⚠️ `next.config.ts` đọc `NEXT_PUBLIC_SUPABASE_URL` **lúc build** để cho
+> `next/image` phép tải ảnh từ host Supabase (`images.remotePatterns`). Đổi biến
+> này thì phải **build lại** — `next dev` khởi động lại là đủ, trên Vercel thì
+> phải deploy lại. Không build lại thì ảnh phòng trả 400 và không hiện.
+>
+> Cờ `dangerouslyAllowLocalIP` tự TẮT khi host không phải IP nội bộ, nên trỏ
+> sang `*.supabase.co` là nó tự đúng, không phải sửa gì.
 
-Không thể insert thẳng vào bảng `profiles` — tài khoản phải đi qua Supabase Auth mới đăng nhập được.
+### 3.4 Tạo tài khoản chủ trọ đầu tiên
+
+Không thể insert thẳng vào bảng `profiles` — tài khoản phải đi qua Supabase Auth
+mới đăng nhập được. Có `.env.local` rồi thì dùng luôn script, nó tạo tài khoản
+và nâng quyền admin trong một lệnh:
+
+```bash
+npm run create-admin -- ban@example.com "mat-khau-manh" "Tên Chủ Trọ"
+```
+
+Script dùng `SUPABASE_SERVICE_ROLE_KEY`, nên nó chạy thẳng vào project nào đang
+khai trong `.env.local` — cloud hay local đều được. Không có sự khác biệt nào.
+
+Làm tay trong dashboard cũng được:
 
 1. **Authentication → Users → Add user**: nhập email + mật khẩu, bật *Auto Confirm User*.
 2. Trigger `on_auth_user_created` tự tạo dòng trong `profiles` với `role = 'tenant'`.
@@ -114,9 +178,92 @@ update public.profiles set role = 'admin' where email = 'email-cua-ban@example.c
 
 Từ đó trở đi, tài khoản người thuê được tạo ngay trong giao diện `/admin/tenants/new`.
 
-### 3.4 Kiểm tra
+### 3.5 Kiểm tra
 
-`GET /api/health` trả `{"ok":true,"database":"up"}` là app đã nối được Postgres thật.
+```bash
+npm run dev
+curl -s http://localhost:3000/api/health
+```
+
+`{"ok":true,"database":"up","vacantRooms":11}` là app đã nối được Postgres thật
+và seed đã vào. `vacantRooms` bằng 0 nghĩa là thiếu `--include-seed`.
+
+Kiểm thêm:
+
+- Đăng nhập tại `/login` bằng tài khoản vừa tạo.
+- `/admin/rooms` — phải thấy đúng 11 phòng, thứ tự `Master, 1…10`.
+- `/admin/reports` — thẻ **Dung lượng ảnh** đọc được nghĩa là 4 bucket đã tạo và
+  hàm `storage_usage()` chạy.
+- Tải một ảnh lên `/admin/rooms/<id>` rồi mở ảnh đó — header phải có
+  `Cache-Control: max-age=31536000`.
+
+### 3.6 Dừng Supabase local
+
+Không cần Docker nữa thì:
+
+```bash
+npm run db:stop
+```
+
+Dữ liệu local vẫn nằm trong volume Docker, `npm run db:start` là có lại. Muốn
+xoá hẳn: `npx supabase stop --no-backup`.
+
+### 3.7 Supabase MCP (cho Claude Code / Cursor)
+
+Cho phép trợ lý AI đọc thẳng schema, log và advisory của project cloud thay vì
+phải copy/dán. Định nghĩa server nằm trong `.mcp.json` — file này **có** commit,
+vì nó không chứa bí mật nào.
+
+Cần hai thứ, cả hai điền vào `.claude/settings.local.json` (file này **bị
+gitignore**, không bao giờ lên git):
+
+| Biến | Lấy ở đâu |
+| --- | --- |
+| `SUPABASE_PROJECT_REF` | phần `<ref>` trong `https://<ref>.supabase.co` |
+| `SUPABASE_ACCESS_TOKEN` | https://supabase.com/dashboard/account/tokens → Generate new token (`sbp_...`) |
+
+```json
+{
+  "env": {
+    "SUPABASE_PROJECT_REF": "abcdefghijklmnopqrst",
+    "SUPABASE_ACCESS_TOKEN": "sbp_..."
+  }
+}
+```
+
+Xong thì mở lại `claude` và **approve** server `supabase` (server khai trong
+`.mcp.json` luôn phải được người dùng đồng ý trước khi chạy — đó là chủ ý, không
+phải lỗi). Kiểm tra: `claude mcp list` phải hiện `supabase: ... ✓ Connected`.
+
+#### Ba cờ trong `.mcp.json`, và vì sao
+
+- **`--read-only`** — MCP chỉ ĐỌC được. Không có `apply_migration`, không có
+  `execute_sql` ghi. Đây là database thật có số CCCD và ảnh giấy tờ; một câu
+  lệnh sai của trợ lý AI không được phép sửa nó. Thay đổi schema vẫn đi con
+  đường cũ: viết file trong `supabase/migrations/` rồi `db push`, có git làm
+  lịch sử.
+- **`--project-ref=...`** — khoá vào ĐÚNG một project. Không có cờ này thì
+  personal access token cho quyền lên **toàn bộ tài khoản** Supabase của bạn:
+  mọi project, cả tạo và xoá project.
+- **`--features=database,debugging,development,storage`** — bỏ nhóm `account`
+  (tạo/xoá project, xem hoá đơn) và `branching` (nhánh database, tính tiền theo
+  giờ, chỉ có ở gói Pro). Còn lại 11 tool:
+  `list_tables`, `list_extensions`, `list_migrations`, `execute_sql` (chỉ đọc),
+  `query_logs`, `get_advisors`, `get_project_url`, `get_publishable_keys`,
+  `generate_typescript_types`, `list_storage_buckets`, `get_storage_config`.
+
+#### ⚠️ Rủi ro cần biết: prompt injection
+
+MCP đọc được nội dung do NGƯỜI THUÊ nhập — tên, mô tả phiếu báo hỏng, ghi chú.
+Một người thuê có thể cố ý viết vào đó những dòng trông như câu lệnh, và mô hình
+đọc log/bảng có thể hiểu đó là chỉ thị. Đây là hạn chế đã biết của MCP nói
+chung, không riêng Supabase.
+
+`--read-only` là thứ chặn hậu quả: đọc sai thì tệ, ghi sai mới mất dữ liệu. Đừng
+bỏ cờ đó chỉ để tiện một lần.
+
+Không muốn dùng MCP nữa: xoá `.mcp.json`, và thu hồi token tại
+https://supabase.com/dashboard/account/tokens.
 
 ---
 

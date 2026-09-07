@@ -105,6 +105,15 @@ export function CheckInForm({
           </Field>
 
           <Field
+            name="expectedEndDate"
+            label="Hết hạn hợp đồng"
+            hint="Bỏ trống nếu thuê không kỳ hạn. Mã mở cổng sẽ hết hiệu lực sau ngày này."
+            errors={errors}
+          >
+            <Input type="date" min={today} />
+          </Field>
+
+          <Field
             name="monthlyPrice"
             label="Giá thuê thoả thuận (đ/tháng)"
             hint="Được lưu riêng cho hợp đồng này. Tăng giá phòng sau này không ảnh hưởng."
