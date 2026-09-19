@@ -14,8 +14,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CopyButton } from "@/components/common/copy-button";
 import { houseConfig, fullAddress, telHref, zaloHref } from "@/config/site";
 import { formatPhone } from "@/lib/format";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Liên hệ" };
+export const metadata: Metadata = pageMeta({
+  title: "Liên hệ",
+  description:
+    `Địa chỉ, số điện thoại và Zalo của ${houseConfig.name} — ${fullAddress()}. ` +
+    `Chủ trọ nhận liên hệ ${houseConfig.contact.officeHours}.`,
+  path: "/contact",
+});
 
 export default function ContactPage() {
   const { contact, bank, address } = houseConfig;

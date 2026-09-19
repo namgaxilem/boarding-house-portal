@@ -38,7 +38,8 @@ export default function manifest(): MetadataRoute.Manifest {
     categories: ["utilities", "lifestyle"],
 
     icons: [
-      // `purpose: "any"` — icon hiện nguyên vẹn, có nền riêng.
+      // `purpose: "any"` — icon hiện nguyên vẹn, NỀN TRONG SUỐT. Android tự đặt
+      // nó lên nền hệ thống; bộ maskable bên dưới mới là bộ có nền.
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
 

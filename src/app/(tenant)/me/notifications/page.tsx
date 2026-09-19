@@ -5,8 +5,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/common/page-header";
 import { NotificationList } from "@/features/notifications/components/notification-list";
 import { listMyNotifications } from "@/features/notifications/queries";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Thông báo" };
+export const metadata: Metadata = pageMeta({
+  title: "Thông báo",
+  description:
+    "Thông báo từ chủ trọ: hoá đơn mới, nhắc đóng tiền và cập nhật phiếu báo hỏng.",
+  path: "/me/notifications",
+});
 
 export const instant = true;
 

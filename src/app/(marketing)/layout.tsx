@@ -1,9 +1,29 @@
+import { Suspense } from "react";
+import type { Metadata } from "next";
+
 import { Link } from "@/components/common/link";
 
 import { Button } from "@/components/ui/button";
 import { BrandLockup } from "@/components/common/logo";
 import { ThemeToggle } from "@/components/common/theme";
+import {
+  MarketingAuthSlot,
+  MarketingAuthSlotFallback,
+} from "@/components/layout/marketing-auth";
 import { houseConfig, fullAddress } from "@/config/site";
+import { indexable } from "@/lib/seo";
+
+/**
+ * Khu DUY NHẤT được lập chỉ mục.
+ *
+ * Layout gốc đặt `robots: noIndex` cho toàn site (cấm trước, mở sau). Ba trang
+ * dưới nhánh này — `/`, `/rooms`, `/contact` — là ba trang khách vãng lai xem
+ * được mà không cần đăng nhập, nên chúng mở lại ở đây.
+ *
+ * Mở ở LAYOUT chứ không ở từng trang: thêm một trang giới thiệu mới thì nó tự
+ * được lập chỉ mục, không phải nhớ khai thêm dòng nào.
+ */
+export const metadata: Metadata = { robots: indexable };
 
 export default function MarketingLayout({
   children,
@@ -23,9 +43,15 @@ export default function MarketingLayout({
               <Link href="/contact">Liên hệ</Link>
             </Button>
             <ThemeToggle />
-            <Button asChild size="sm">
-              <Link href="/login">Đăng nhập</Link>
-            </Button>
+            {/* Đọc phiên đăng nhập là dữ liệu thời-điểm-yêu-cầu, nên bọc
+                <Suspense> để vỏ trang công khai vẫn prerender. `min-w` giữ đúng
+                bề rộng của nút "Đăng nhập" — avatar hẹp hơn, không có nó thì
+                header nhảy một nhịp khi phần này stream vào. */}
+            <div className="flex min-w-20 justify-end">
+              <Suspense fallback={<MarketingAuthSlotFallback />}>
+                <MarketingAuthSlot />
+              </Suspense>
+            </div>
           </div>
         </div>
       </header>

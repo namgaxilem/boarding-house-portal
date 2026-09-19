@@ -16,8 +16,14 @@ import { db } from "@/lib/db";
 import { ROLE_LABEL } from "@/lib/constants";
 import { initials } from "@/lib/format";
 import { houseConfig } from "@/config/site";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Thông tin cá nhân" };
+export const metadata: Metadata = pageMeta({
+  title: "Thông tin cá nhân",
+  description:
+    "Cập nhật họ tên, số điện thoại và email của tài khoản.",
+  path: "/me/profile",
+});
 
 // Thẻ "Đổi mật khẩu" là form client thuần nên nằm trong shell tĩnh; phần đọc
 // searchParams và hồ sơ người dùng stream sau.

@@ -1,29 +1,34 @@
 <!--
-  Dấu hiệu nhận diện, KHÔNG có nền.
+  Bản ăn theo màu chữ — dùng khi đặt logo lên nền CÓ SẴN: đầu thư, hợp đồng in
+  ra, con dấu, áo đồng phục, slide.
 
-  Dùng khi đặt logo lên một nền có sẵn: đầu thư, hợp đồng in ra, con dấu, áo.
-  App không dùng file này — app dựng lại cùng hình đó bằng React ở
-  `src/components/common/logo.tsx` để nó ăn theo kích thước và không tốn thêm
-  một request ảnh.
+  Khác `logo.svg` đúng một điểm: phần teal ở đây là `currentColor`, nên thả vào
+  chỗ nào là ăn màu chữ chỗ đó (in đen trắng ra đen, đặt trên nền teal đậm thì
+  set màu trắng). Lỗ khóa giữ nguyên hổ phách — đó là màu thương hiệu, không
+  phải màu trang trí. In một màu thì xóa hai hình cuối, hình vẫn đọc được.
 
-  Phần thân nhà dùng `currentColor`, nên đặt vào chỗ nào là ăn màu chữ chỗ đó.
-  Hai ô hổ phách giữ nguyên màu — đó là điểm nhấn thương hiệu, không phải màu
-  trang trí.
+  App KHÔNG đọc file này: giao diện dựng lại cùng hình bằng React ở
+  `src/components/common/logo.tsx` để ăn theo kích thước và khỏi tốn một request.
 
-  KHÔNG dùng file này làm nguồn sinh icon: icon cần nền bo góc, xem logo.svg.
+  Nguồn sinh icon là `logo.svg`, không phải file này. Sửa hình thì sửa cả ba nơi.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 320" width="360" height="320">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <path
-    d="M8 152 L180 8 L352 152 L302 152 L302 312 L58 312 L58 152 Z"
-    fill="currentColor"
+    d="M76 258 L256 96 L436 258"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="58"
+    stroke-linecap="round"
+    stroke-linejoin="round"
   />
+  <path
+    d="M206 306 V264 a50 50 0 0 1 100 0 V306"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="34"
+  />
+  <rect x="156" y="294" width="200" height="154" rx="30" fill="currentColor" />
 
-  <!-- Dải ngăn tầng và bốn ô cửa được KHOÉT bằng cách vẽ đè màu nền. Trên nền
-       không đồng màu thì đổi `fill` của bốn hình này cho khớp, hoặc dùng
-       logo.svg bản có nền. -->
-  <rect x="58" y="220" width="244" height="27" fill="#ffffff" />
-  <rect x="96" y="172" width="72" height="44" rx="11" fill="#f6b93b" />
-  <rect x="192" y="172" width="72" height="44" rx="11" fill="#ffffff" />
-  <rect x="96" y="252" width="72" height="44" rx="11" fill="#ffffff" />
-  <rect x="192" y="252" width="72" height="44" rx="11" fill="#f6b93b" />
+  <circle cx="256" cy="355" r="24" fill="#f6b93b" />
+  <rect x="246" y="355" width="20" height="56" rx="6" fill="#f6b93b" />
 </svg>

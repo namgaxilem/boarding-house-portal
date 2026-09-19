@@ -15,8 +15,14 @@ import { PaymentMethods } from "@/features/payments/components/payment-methods";
 import { getMyTenancy } from "@/features/tenants/queries";
 import { houseConfig, fullAddress, telHref, zaloHref } from "@/config/site";
 import { formatPhone } from "@/lib/format";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Liên hệ chủ trọ" };
+export const metadata: Metadata = pageMeta({
+  title: "Liên hệ chủ trọ",
+  description:
+    "Số điện thoại, Zalo, số gọi khẩn cấp và giờ tiếp nhận liên hệ của chủ trọ.",
+  path: "/me/contact",
+});
 
 // Toàn bộ trang lấy từ config nên prerender được; chỉ nội dung chuyển khoản cần
 // biết mã phòng của người đang đăng nhập, phần đó stream sau.

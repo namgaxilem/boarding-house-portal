@@ -79,6 +79,11 @@ export const config = {
     // đăng nhập. Để chúng đi qua proxy thì khách chưa đăng nhập sẽ nhận về HTML
     // của trang /login — service worker không đăng ký được, nút "Cài đặt" không
     // bao giờ xuất hiện, và lỗi thì im lặng.
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|js|wasm|webmanifest)$).*)",
+    //
+    // `xml|txt` là phần thêm cho SEO: `/sitemap.xml` và `/robots.txt` được bot
+    // tìm kiếm tải mà KHÔNG bao giờ có phiên đăng nhập. Đi qua proxy thì cả hai
+    // bị chuyển hướng 307 sang /login — Googlebot đọc được một trang đăng nhập
+    // thay vì sitemap, và không có gì báo lỗi.
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|js|wasm|webmanifest|xml|txt)$).*)",
   ],
 };

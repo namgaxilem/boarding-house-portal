@@ -6,6 +6,7 @@ import { NavProgress } from "@/components/common/nav-progress";
 import { ServiceWorkerRegistration } from "@/components/common/service-worker";
 import { ThemeProvider } from "@/components/common/theme";
 import { houseConfig } from "@/config/site";
+import { defaultOgImage, metadataBase, noIndex, siteUrl } from "@/lib/seo";
 
 import "./globals.css";
 
@@ -25,12 +26,48 @@ const mono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  // Mọi URL tương đối trong metadata (og:image, canonical) được nối với gốc này
+  // thành URL tuyệt đối. Thiếu nó thì Next cảnh báo lúc build rồi tự điền
+  // `http://localhost:3000` — link chia sẻ ra ngoài mất ảnh xem trước.
+  metadataBase,
+
   title: {
     default: houseConfig.name,
     template: `%s · ${houseConfig.name}`,
   },
   description: houseConfig.description,
-  robots: { index: false, follow: false },
+
+  /**
+   * MẶC ĐỊNH LÀ CẤM, mở ra từng khu một.
+   *
+   * Chỉ ba trang công khai (`/`, `/rooms`, `/contact`) đáng lên Google, và
+   * chúng bật lại bằng `robots: indexable` ở `(marketing)/layout.tsx`. Mọi thứ
+   * khác — cổng người thuê, trang đăng nhập, khu quản trị — thừa hưởng dòng này
+   * và ở ngoài chỉ mục.
+   *
+   * Cố ý theo chiều CẤM-TRƯỚC: thêm một trang riêng tư mới mà quên khai gì thì
+   * nó im lặng nằm ngoài Google, chứ không im lặng lọt vào.
+   */
+  robots: noIndex,
+
+  // Nền của mọi thẻ xem trước. Từng trang đè lại tiêu đề/mô tả qua `pageMeta()`;
+  // những khoá ở đây (siteName, locale, type) thì giống nhau toàn site.
+  openGraph: {
+    type: "website",
+    siteName: houseConfig.name,
+    locale: "vi_VN",
+    url: siteUrl,
+    title: houseConfig.name,
+    description: houseConfig.description,
+    images: [defaultOgImage],
+  },
+
+  twitter: {
+    card: "summary_large_image",
+    title: houseConfig.name,
+    description: houseConfig.description,
+    images: [defaultOgImage],
+  },
 
   applicationName: houseConfig.shortName,
 

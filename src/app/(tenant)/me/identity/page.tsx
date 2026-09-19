@@ -17,8 +17,14 @@ import { ID_DOC_STATUS_LABEL, ID_DOC_STATUS_STYLE } from "@/lib/constants";
 import { formatIdNumber } from "@/lib/cccd";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Giấy tờ tuỳ thân" };
+export const metadata: Metadata = pageMeta({
+  title: "Giấy tờ tuỳ thân",
+  description:
+    "Gửi ảnh CCCD để chủ trọ đăng ký tạm trú. Ảnh nằm ở kho riêng tư, chỉ chủ trọ mở được.",
+  path: "/me/identity",
+});
 
 /** Phần giải thích là tĩnh; hồ sơ và ảnh (cần ký URL) stream sau. */
 export const instant = true;

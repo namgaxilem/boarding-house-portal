@@ -6,45 +6,66 @@
   Sửa file này rồi chạy `npm run icons` là sinh lại cả bộ — favicon, icon iOS,
   icon Android (thường + maskable) và ảnh chia sẻ mạng xã hội.
 
-  Ý tưởng: NHÀ TRỌ, không phải "cái nhà".
-  Một mái nhà, thân nhà chia làm HAI TẦNG bằng một dải ngang, mỗi tầng hai
-  phòng — đó là thứ phân biệt nhà trọ với một biểu tượng ngôi nhà bất kỳ.
-  Hai ô sáng màu hổ phách nằm chéo nhau là hai phòng đang có người ở.
+  Ý tưởng: MÁI NHÀ CHE MỘT Ổ KHÓA.
+  Không phải "cái nhà" chung chung — nhà trọ này bán sự an tâm: cổng khóa thông
+  minh, camera 24/7, giờ giấc tự do mà vẫn kín. Mái vươn rộng hơn hẳn thân khóa
+  để đọc ra "được che chở", không phải "bị nhốt". Lỗ khóa hổ phách là điểm ấm
+  duy nhất, cố ý nằm LỌT TRONG khối teal: hổ phách đặt thẳng lên nền trang thì
+  tương phản chỉ ~1.7:1 và mép chữ bị nhòe.
+
+  KHÔNG CÓ NỀN. Đây là thay đổi cố ý so với bản cũ (plate teal bo góc 112px):
+  icon dán lên tab trình duyệt, thanh điều hướng và trang giới thiệu mà mang
+  theo một ô vuông màu thì trông như sticker dán đè, không như logo.
+
+  Nền đặc chỉ còn ở ba chỗ KHÔNG tránh được, và do generate-icons.mjs tự trải
+  màu kem `#fbfaf7` vào (xem PLATE_BG ở đó):
+    - apple-icon  — iOS tô ĐEN mọi vùng trong suốt của icon màn hình chính;
+    - maskable    — Android cắt theo hình launcher, thiếu nền thì hở bốn góc;
+    - opengraph   — thẻ chia sẻ link cần một tấm ảnh đặc.
 
   Thiết kế cho 32px TRƯỚC, rồi mới đến 512px:
-    - hình khối ĐẶC, không dùng nét viền — nét mảnh nhoè khi thu nhỏ;
-    - đúng bốn ô cửa, ô nào cũng ≥ 40px trên khung 512 (≈2,5px ở cỡ 32);
-    - dải ngăn tầng dày 26px, còn thấy được cả khi thu về 32px;
-    - hai ô hổ phách tạo điểm nhìn, nhờ đó icon không thành một khối trắng.
+    - đúng BA khối: mái, quai khóa, thân khóa. Thêm khối thứ tư là 32px nát;
+    - nét mái dày 58px (≈3,6px ở cỡ 32) — mảnh hơn là mất khi thu nhỏ;
+    - quai khóa nép vào lòng chữ V của mái, đủ gần để đọc ra một vật thể liền;
+    - bo tròn đầu nét và đỉnh mái (`stroke-linejoin="round"`) cho khớp thân khóa.
 
   Ràng buộc nếu vẽ lại:
-    - viewBox vuông;
-    - hình chính nằm trong khoảng giữa (ở đây rộng 328/512 ≈ 64%), vì Android
-      cắt icon theo hình của launcher — chi tiết sát mép sẽ bị xén;
-    - PNG cũng được, đổi tên thành logo.png là script tự nhận.
+    - viewBox vuông, hình nằm trong khoảng giữa (ở đây 47–465 ≈ 82%): Android
+      cắt maskable theo hình launcher, chi tiết sát mép sẽ bị xén;
+    - PNG cũng được, đổi tên thành logo.png là script tự nhận — nhưng PNG thì
+      mất nền trong suốt nếu xuất sai, kiểm lại kênh alpha.
 
-  Màu: nền #0d7d78 phải khớp với `BRAND_BG` trong scripts/generate-icons.mjs
-  và với biến CSS `primary` trong src/app/globals.css.
+  Màu teal ở đây là #0e8f89, SÁNG HƠN MỘT NẤC so với `primary` (#0d7d78) trong
+  globals.css. Cố ý: icon phải sống trên cả thanh tab sáng lẫn tối, và #0d7d78
+  trên nền tab tối chỉ đạt ~2.4:1. #0e8f89 đạt ≥3:1 ở cả hai phía. Đổi màu ở
+  đây thì đổi luôn `INK` trong src/components/common/logo.tsx và assets/logo-mark.svg.
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <!-- Nền bo góc: icon nổi trên cả thanh tab sáng lẫn tối, không cần viền. -->
-  <rect width="512" height="512" rx="112" fill="#0d7d78" />
-
-  <!-- Mái + thân là MỘT hình khép kín. Gộp lại thì không bao giờ hở đường chỉ
-       giữa hai mảnh khi trình duyệt làm mượt lúc thu nhỏ. -->
+  <!-- Mái. Vẽ bằng nét chứ không phải hình đặc: đầu nét bo tròn cho ra hiên
+       nhà mềm, và chỉ một `stroke-width` là chỉnh được độ dày cho cỡ 32px. -->
   <path
-    d="M92 252 L256 112 L420 252 L372 252 L372 404 L140 404 L140 252 Z"
-    fill="#ffffff"
+    d="M76 258 L256 96 L436 258"
+    fill="none"
+    stroke="#0e8f89"
+    stroke-width="58"
+    stroke-linecap="round"
+    stroke-linejoin="round"
   />
 
-  <!-- Dải ngăn hai tầng. Đây là chi tiết mang nghĩa "nhà trọ" và cũng là chi
-       tiết sống sót tốt nhất khi thu nhỏ — một đường ngang dày luôn đọc được. -->
-  <rect x="140" y="318" width="232" height="26" fill="#0d7d78" />
+  <!-- Quai khóa. Nửa đường tròn r=50, hai chân thò xuống 306 rồi khuất sau thân
+       khóa (mép trên thân ở 294) — nhờ vậy không bao giờ hở đường chỉ nối. -->
+  <path
+    d="M206 306 V264 a50 50 0 0 1 100 0 V306"
+    fill="none"
+    stroke="#0e8f89"
+    stroke-width="34"
+  />
 
-  <!-- Bốn phòng. Hai ô hổ phách nằm chéo nhau: có người ở, và thế cân bằng
-       chéo giữ cho icon không bị lệch về một bên. -->
-  <rect x="176" y="272" width="68" height="42" rx="10" fill="#f6b93b" />
-  <rect x="268" y="272" width="68" height="42" rx="10" fill="#0d7d78" />
-  <rect x="176" y="348" width="68" height="42" rx="10" fill="#0d7d78" />
-  <rect x="268" y="348" width="68" height="42" rx="10" fill="#f6b93b" />
+  <!-- Thân khóa. -->
+  <rect x="156" y="294" width="200" height="154" rx="30" fill="#0e8f89" />
+
+  <!-- Lỗ khóa hổ phách — điểm nhấn thương hiệu duy nhất, giữ cho icon không
+       thành một khối teal câm. Luôn nằm trong thân khóa, không chạm nền trang. -->
+  <circle cx="256" cy="355" r="24" fill="#f6b93b" />
+  <rect x="246" y="355" width="20" height="56" rx="6" fill="#f6b93b" />
 </svg>

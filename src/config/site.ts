@@ -15,13 +15,13 @@
 
 export const houseConfig = {
   /** Tên hiển thị trên mọi trang, tab trình duyệt, và trang giới thiệu. */
-  name: "Nhà trọ Tân Phát",
+  name: "Nhà trọ 1-47",
 
   /**
    * Tên hiện DƯỚI ICON khi cài app lên màn hình chính điện thoại.
    * Android cắt sau ~12 ký tự, iOS sau ~11 — dài hơn sẽ thành "Nhà trọ Tâ…".
    */
-  shortName: "Tân Phát",
+  shortName: "Nhà trọ 1-47",
 
   /**
    * Múi giờ dùng để HIỂN THỊ mọi mốc thời gian.
@@ -43,33 +43,33 @@ export const houseConfig = {
 
   /** Địa chỉ đầy đủ. */
   address: {
-    street: "123 Đường Cầu Giấy",
-    ward: "Phường Dịch Vọng",
-    district: "Quận Cầu Giấy",
-    city: "Hà Nội",
+    street: "1/49 Đặng Thùy Trâm",
+    ward: "Phường Bình Lợi Trung",
+    district: "",
+    city: "Thành phố Hồ Chí Minh",
     /** Link Google Maps. Để rỗng thì trang liên hệ ẩn nút chỉ đường. */
-    mapUrl: "https://maps.google.com/?q=123+Cau+Giay+Ha+Noi",
+    mapUrl: "https://maps.app.goo.gl/Sb6yuKAGUu8Jb8E16",
   },
 
   /** Thông tin liên hệ chủ trọ. */
   contact: {
-    ownerName: "Nguyễn Đức Nam",
-    phone: "0901234567",
-    zalo: "0901234567",
-    email: "nhatrotanphat@gmail.com",
+    ownerName: "Nguyễn Thị Lý",
+    phone: "0834026501",
+    zalo: "0868212741",
+    email: "namnguyenduc118@gmail.com",
     /** Số gọi khi có sự cố khẩn cấp (cháy, rò điện, ngập). */
-    emergencyPhone: "0908888888",
+    emergencyPhone: "0868212741",
     /** Giờ chủ trọ tiếp nhận liên hệ, hiển thị ở trang liên hệ. */
     officeHours: "07:00 – 21:00 hàng ngày",
   },
 
   /** Tài khoản nhận tiền phòng. Để `null` nếu chỉ thu tiền mặt. */
   bank: {
-    name: "Vietcombank",
-    accountNumber: "0011001234567",
+    name: "BIDV",
+    accountNumber: "0868212741",
     accountHolder: "NGUYEN DUC NAM",
     /** Cú pháp chuyển khoản gợi ý cho người thuê. */
-    transferNote: "[Mã phòng] [Tháng] - VD: 1 09/2026",
+    transferNote: "[Số phòng] [Tháng] - VD: 1 09/2026",
   } as {
     name: string;
     accountNumber: string;
@@ -149,7 +149,7 @@ export const houseConfig = {
   /** Tiện ích hiển thị ở trang giới thiệu công khai. */
   amenities: [
     "Phòng khép kín, có gác lửng",
-    "Wifi tốc độ cao miễn phí",
+    "Wifi tốc độ cao",
     "Chỗ để xe máy có mái che",
     "Camera an ninh 24/7",
     "Giờ giấc tự do, không chung chủ",
@@ -199,9 +199,20 @@ export const houseConfig = {
    *   - Zalo: khớp theo số điện thoại (lần đầu), sau đó nhớ theo Zalo ID.
    */
   login: {
-    google: true,
-    facebook: true,
-    zalo: true,
+    // Tắt hết: chỉ dùng email + mật khẩu.
+    //
+    // Cả ba đều mới làm xong bước 3 (cờ này), chưa làm bước 1–2 của README mục 4
+    // — nên bật lên là nút hiện mà bấm vào gặp lỗi:
+    //   - google/facebook: `[auth.external.*] enabled = false` trong config.toml,
+    //     và provider cũng chưa bật trên project cloud → Supabase trả thẳng JSON
+    //     `Unsupported provider: provider is not enabled`, app không bắt được vì
+    //     bị từ chối ngay ở /authorize, trước khi kịp redirect về.
+    //   - zalo: thiếu ZALO_APP_ID / ZALO_APP_SECRET → /login?error=...
+    //
+    // Bật lại từng cái MỘT, và chỉ sau khi đã xong đủ ba bước cho cái đó.
+    google: false,
+    facebook: false,
+    zalo: false,
   },
 } as const;
 

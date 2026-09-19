@@ -16,8 +16,13 @@ import {
 import { requireUser } from "@/lib/auth/dal";
 import { db } from "@/lib/db";
 import { formatMonthYear } from "@/lib/format";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Chi tiết hoá đơn" };
+export const metadata: Metadata = pageMeta({
+  title: "Chi tiết hoá đơn",
+  description:
+    "Chi tiết từng khoản trong hoá đơn: tiền phòng, số điện, số nước và dịch vụ.",
+});
 
 export const instant = true;
 

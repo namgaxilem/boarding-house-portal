@@ -15,6 +15,21 @@ import { Badge } from "@/components/ui/badge";
 import { listVacantRooms } from "@/lib/db/public-rooms";
 import { formatVND } from "@/lib/format";
 import { houseConfig, fullAddress, telHref } from "@/config/site";
+import { pageMeta } from "@/lib/seo";
+
+/**
+ * Tiêu đề trang chủ là KHẨU HIỆU chứ không phải tên nhà trọ.
+ *
+ * Người ta gõ "phòng trọ bình thạnh", không gõ "nhà trọ 1-47" — họ chưa biết
+ * nhà trọ này tồn tại. Template ở layout gốc vẫn nối tên vào sau, nên kết quả
+ * là "Phòng trọ sạch sẽ, an ninh, gần trung tâm · Nhà trọ 1-47": có từ khoá ở
+ * đầu, có thương hiệu ở cuối, vừa dưới ngưỡng ~60 ký tự Google cắt chữ.
+ */
+export const metadata = pageMeta({
+  title: houseConfig.tagline,
+  description: `${houseConfig.description} Địa chỉ ${fullAddress()}.`,
+  path: "/",
+});
 
 // Vacancy comes from the database and changes whenever someone checks in or
 // out, so it stays uncached. Under Cache Components everything outside the two

@@ -21,8 +21,14 @@ import {
   initials,
 } from "@/lib/format";
 import { electricUsed, waterUsed } from "@/lib/period";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Phòng của tôi" };
+export const metadata: Metadata = pageMeta({
+  title: "Phòng của tôi",
+  description:
+    "Thông tin phòng đang thuê: diện tích, đơn giá điện nước và ảnh phòng.",
+  path: "/me/room",
+});
 
 export const instant = true;
 

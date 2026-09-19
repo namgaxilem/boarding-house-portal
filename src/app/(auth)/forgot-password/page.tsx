@@ -3,8 +3,14 @@ import { Link } from "@/components/common/link";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ForgotPasswordForm } from "@/features/auth/components/password-forms";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Quên mật khẩu" };
+export const metadata: Metadata = pageMeta({
+  title: "Quên mật khẩu",
+  description:
+    "Nhận email đặt lại mật khẩu cho tài khoản người thuê.",
+  path: "/forgot-password",
+});
 
 export default function ForgotPasswordPage() {
   return (

@@ -10,12 +10,27 @@ import { cn } from "@/lib/utils";
  * không ăn theo `currentColor`. Vài chục byte markup rẻ hơn tất cả những thứ đó.
  *
  * Hình giống hệt `assets/logo.svg` — file đó là nguồn sinh icon PWA/favicon,
- * còn component này là bản dùng trong giao diện. Sửa một bên thì sửa cả hai.
+ * còn component này là bản dùng trong giao diện. Sửa một bên thì sửa cả hai
+ * (và cả `assets/logo-mark.svg`, bản in ra giấy).
+ *
+ * Khác duy nhất: `viewBox` ở đây CẮT SÁT hình (40 60 432 396) thay vì
+ * `0 0 512 512`. Lề trong file nguồn tồn tại vì Android xén maskable theo hình
+ * launcher — ở giao diện thì lề đó chỉ làm logo hụt đi ~20% so với chữ bên cạnh.
+ *
+ * Hình là MÁI NHÀ CHE MỘT Ổ KHÓA, không có nền. Bản cũ có một plate teal bo góc
+ * phía sau; bỏ đi vì trên thanh điều hướng và tab trình duyệt nó trông như
+ * sticker dán đè. Nền đặc giờ chỉ còn ở apple-icon / maskable / ảnh chia sẻ,
+ * do scripts/generate-icons.mjs tự trải màu kem vào — xem ghi chú ở đó.
  */
 
-/** Màu cố định, KHÔNG theo theme: logo phải giống nhau ở chế độ sáng và tối. */
-const BRAND = "#0d7d78";
-const WALL = "#ffffff";
+/**
+ * Màu cố định, KHÔNG theo theme: logo phải giống nhau ở chế độ sáng và tối.
+ *
+ * `INK` sáng hơn một nấc so với `--primary` (#0d7d78). Cố ý — logo không nền
+ * phải đọc được cả trên nền kem lẫn nền tối, và #0d7d78 trên nền tối chỉ đạt
+ * ~2.4:1. Đổi ở đây thì đổi luôn assets/logo.svg và assets/logo-mark.svg.
+ */
+const INK = "#0e8f89";
 const LIT = "#f6b93b";
 
 export function HouseLogo({
@@ -28,21 +43,30 @@ export function HouseLogo({
 }) {
   return (
     <svg
-      viewBox="0 0 512 512"
+      viewBox="40 60 432 396"
       className={cn("shrink-0", className)}
       role={title ? "img" : "presentation"}
       aria-label={title || undefined}
       aria-hidden={title ? undefined : true}
     >
-      <rect width="512" height="512" rx="112" fill={BRAND} />
-      <path d="M92 252 L256 112 L420 252 L372 252 L372 404 L140 404 L140 252 Z" fill={WALL} />
-      {/* Dải ngăn hai tầng — chi tiết nói "nhà trọ" thay vì "cái nhà". */}
-      <rect x="140" y="318" width="232" height="26" fill={BRAND} />
-      {/* Hai ô sáng nằm chéo nhau: hai phòng đang có người ở. */}
-      <rect x="176" y="272" width="68" height="42" rx="10" fill={LIT} />
-      <rect x="268" y="272" width="68" height="42" rx="10" fill={BRAND} />
-      <rect x="176" y="348" width="68" height="42" rx="10" fill={BRAND} />
-      <rect x="268" y="348" width="68" height="42" rx="10" fill={LIT} />
+      {/* Mái. Vẽ bằng nét, đầu bo tròn — cho ra hiên nhà mềm và chỉnh độ dày
+          bằng đúng một con số khi cần cứu cỡ 32px. */}
+      <path
+        d="M76 258 L256 96 L436 258"
+        fill="none"
+        stroke={INK}
+        strokeWidth={58}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Quai khóa, nép trong lòng chữ V của mái. Hai chân thò xuống 306 rồi
+          khuất sau thân khóa (mép trên 294): không bao giờ hở đường chỉ nối. */}
+      <path d="M206 306 V264 a50 50 0 0 1 100 0 V306" fill="none" stroke={INK} strokeWidth={34} />
+      <rect x={156} y={294} width={200} height={154} rx={30} fill={INK} />
+      {/* Lỗ khóa — điểm ấm duy nhất. Luôn nằm trong thân khóa, không chạm nền
+          trang: hổ phách đặt thẳng lên nền kem chỉ được ~1.7:1. */}
+      <circle cx={256} cy={355} r={24} fill={LIT} />
+      <rect x={246} y={355} width={20} height={56} rx={6} fill={LIT} />
     </svg>
   );
 }

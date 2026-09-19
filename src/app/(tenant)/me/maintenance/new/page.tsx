@@ -8,8 +8,14 @@ import { NoRoomNotice } from "@/components/common/no-room-notice";
 import { createMyRequest } from "@/features/maintenance/actions";
 import { RequestForm } from "@/features/maintenance/components/request-form";
 import { getMyTenancy } from "@/features/tenants/queries";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Báo hỏng mới" };
+export const metadata: Metadata = pageMeta({
+  title: "Báo hỏng mới",
+  description:
+    "Gửi phiếu báo hỏng điện, nước, khoá cửa hoặc thiết bị trong phòng.",
+  path: "/me/maintenance/new",
+});
 
 export const instant = true;
 

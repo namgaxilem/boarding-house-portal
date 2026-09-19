@@ -10,8 +10,14 @@ import { EmptyState } from "@/components/common/empty-state";
 import { InvoiceStatusBadge } from "@/features/invoices/components/invoice-lines";
 import { listMyInvoices } from "@/features/invoices/queries";
 import { formatDate, formatMonthYear, formatVND } from "@/lib/format";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Hoá đơn của tôi" };
+export const metadata: Metadata = pageMeta({
+  title: "Hoá đơn của tôi",
+  description:
+    "Hoá đơn tiền phòng, điện, nước và dịch vụ theo từng tháng.",
+  path: "/me/invoices",
+});
 
 export const instant = true;
 

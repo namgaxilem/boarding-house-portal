@@ -13,8 +13,14 @@ import { getMyTenancy, getMyWifi } from "@/features/tenants/queries";
 import { getMyUnpaidInvoices } from "@/features/invoices/queries";
 import { formatDate, formatDuration, formatMonthYear, formatVND } from "@/lib/format";
 import { houseConfig } from "@/config/site";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Trang chủ" };
+export const metadata: Metadata = pageMeta({
+  title: "Trang chủ",
+  description:
+    "Tổng quan phòng đang thuê: hoá đơn cần đóng, thông báo mới và phiếu báo hỏng đang xử lý.",
+  path: "/me",
+});
 
 // Cả trang phụ thuộc vào hợp đồng thuê (không có phòng thì thay bằng NoRoomNotice),
 // nên không tách được phần tĩnh nào ra ngoài. Bọc trong <Suspense>: chuyển tab là

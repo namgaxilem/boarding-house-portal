@@ -8,8 +8,13 @@ import { updateMyRequest } from "@/features/maintenance/actions";
 import { RequestForm } from "@/features/maintenance/components/request-form";
 import { getMaintenanceRequest } from "@/features/maintenance/queries";
 import { requireUser } from "@/lib/auth/dal";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Sửa báo hỏng" };
+export const metadata: Metadata = pageMeta({
+  title: "Sửa báo hỏng",
+  description:
+    "Sửa nội dung hoặc ảnh của phiếu báo hỏng chưa được tiếp nhận.",
+});
 
 export const instant = true;
 

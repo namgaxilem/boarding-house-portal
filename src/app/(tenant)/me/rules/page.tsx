@@ -4,8 +4,14 @@ import { PhoneIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { houseConfig, telHref } from "@/config/site";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Nội quy" };
+export const metadata: Metadata = pageMeta({
+  title: "Nội quy",
+  description:
+    "Nội quy nhà trọ: giờ giấc, hạn đóng tiền, chỗ để xe, khách ở lại và đổ rác.",
+  path: "/me/rules",
+});
 
 // Nội quy nằm trong config, không đọc DB — trang này tĩnh hoàn toàn.
 export const instant = true;

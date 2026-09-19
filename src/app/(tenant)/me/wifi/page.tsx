@@ -10,8 +10,14 @@ import { EmptyState } from "@/components/common/empty-state";
 import { NoRoomNotice } from "@/components/common/no-room-notice";
 import { getMyTenancy, getMyWifi } from "@/features/tenants/queries";
 import { WIFI_SCOPE_LABEL } from "@/lib/constants";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Wifi" };
+export const metadata: Metadata = pageMeta({
+  title: "Wifi",
+  description:
+    "Tên mạng và mật khẩu wifi của nhà trọ.",
+  path: "/me/wifi",
+});
 
 export const instant = true;
 

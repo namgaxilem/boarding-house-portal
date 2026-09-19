@@ -9,9 +9,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/common/empty-state";
 import { listVacantRooms } from "@/lib/db/public-rooms";
 import { formatVND } from "@/lib/format";
-import { houseConfig, telHref } from "@/config/site";
+import { houseConfig, fullAddress, telHref } from "@/config/site";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Phòng trống" };
+export const metadata: Metadata = pageMeta({
+  title: "Phòng trống",
+  description:
+    `Danh sách phòng còn trống tại ${houseConfig.name}, ${fullAddress()}. ` +
+    "Xem giá thuê, diện tích, số người ở tối đa và ảnh từng phòng.",
+  path: "/rooms",
+});
 
 // Tiêu đề là tĩnh nên vào trang này hiện ngay; số phòng và danh sách phòng đọc DB
 // nên nằm trong <Suspense> và stream sau.

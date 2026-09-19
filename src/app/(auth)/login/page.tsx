@@ -8,8 +8,14 @@ import { LoginForm } from "@/features/auth/components/login-form";
 import { SocialButtons } from "@/features/auth/components/social-buttons";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { HOME_PATH } from "@/lib/constants";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Đăng nhập" };
+export const metadata: Metadata = pageMeta({
+  title: "Đăng nhập",
+  description:
+    "Đăng nhập để xem hoá đơn, phòng đang thuê, mật khẩu wifi và gửi báo hỏng.",
+  path: "/login",
+});
 
 // Trang này phải chặn: nếu người dùng đã đăng nhập thì redirect về home theo role,
 // stream cái đó ra sau shell nghĩa là form đăng nhập loé lên rồi mới nhảy trang.

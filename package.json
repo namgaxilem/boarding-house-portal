@@ -13,6 +13,7 @@
     "db:status": "supabase status",
     "db:reset": "supabase db reset",
     "create-admin": "node --env-file=.env.local scripts/create-admin.mjs",
+    "import-photos": "node --env-file=.env.local scripts/import-room-photos.mjs",
     "icons": "node scripts/generate-icons.mjs",
     "postinstall": "node scripts/copy-wasm.mjs",
     "db:studio": "supabase status -o env | grep STUDIO",

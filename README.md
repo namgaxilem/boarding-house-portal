@@ -178,7 +178,47 @@ update public.profiles set role = 'admin' where email = 'email-cua-ban@example.c
 
 Từ đó trở đi, tài khoản người thuê được tạo ngay trong giao diện `/admin/tenants/new`.
 
-### 3.5 Kiểm tra
+### 3.5 Nạp ảnh phòng có sẵn (tuỳ chọn)
+
+Đã có sẵn một thư mục ảnh chụp từng phòng trên máy thì không phải mở
+`/admin/rooms/<id>` mười một lần. Xếp ảnh theo thư mục con `phong_<mã>` — mã
+khớp cột `rooms.code`, riêng `phong_0` là phòng `Master`:
+
+```
+nha tro/
+├─ phong_0/   → phòng Master
+├─ phong_1/   → phòng 1
+├─ phong_10/  → phòng 10
+└─ …
+```
+
+```bash
+npm run import-photos -- "C:/Users/ban/Pictures/nha tro" --dry-run   # xem trước
+npm run import-photos -- "C:/Users/ban/Pictures/nha tro"             # nạp thật
+```
+
+Script nén y hệt trình duyệt (WebP, cạnh dài 1600px, hạ chất lượng dần cho tới
+khi dưới 400KB) rồi đẩy lên bucket `room-photos` và ghi bảng `room_photos`.
+
+**Chạy lại bao nhiêu lần cũng được.** `storage_path` là băm nội dung file gốc
+chứ không phải UUID ngẫu nhiên, và cột đó có ràng buộc `unique` — nạp lại cùng
+một tấm ảnh bị database chặn chứ không sinh bản sao. Đổi tên file trên máy cũng
+không tạo thêm bản sao; nội dung mới là thứ được băm.
+
+Ảnh mới luôn xuống **cuối** danh sách, không cướp chỗ ảnh bìa đang có. Muốn xoá
+sạch ảnh cũ của những phòng có trong thư mục nguồn thì thêm `--replace` (phòng
+không có thư mục nguồn không bị đụng tới).
+
+Những gì script **không** làm, cố ý:
+
+- Video (`.mp4`) — bucket chỉ nhận `image/jpeg|png|webp`.
+- Ảnh nằm ở gốc thư mục (cổng, nhà xe, sơ đồ) — app chưa có chỗ chứa ảnh chung,
+  gán bừa vào một phòng nào đó thì sai.
+- Thư mục không theo dạng `phong_<mã>`, hoặc mã không có trong database.
+
+Cả ba đều được liệt kê ở cuối lần chạy chứ không im lặng bỏ qua.
+
+### 3.6 Kiểm tra
 
 ```bash
 npm run dev
@@ -197,7 +237,7 @@ Kiểm thêm:
 - Tải một ảnh lên `/admin/rooms/<id>` rồi mở ảnh đó — header phải có
   `Cache-Control: max-age=31536000`.
 
-### 3.6 Dừng Supabase local
+### 3.7 Dừng Supabase local
 
 Không cần Docker nữa thì:
 
@@ -208,7 +248,7 @@ npm run db:stop
 Dữ liệu local vẫn nằm trong volume Docker, `npm run db:start` là có lại. Muốn
 xoá hẳn: `npx supabase stop --no-backup`.
 
-### 3.7 Supabase MCP (cho Claude Code / Cursor)
+### 3.8 Supabase MCP (cho Claude Code / Cursor)
 
 Cho phép trợ lý AI đọc thẳng schema, log và advisory của project cloud thay vì
 phải copy/dán. Định nghĩa server nằm trong `.mcp.json` — file này **có** commit,
@@ -313,7 +353,7 @@ Redirect URI khai ở Zalo Developers: `<NEXT_PUBLIC_SITE_URL>/auth/zalo/callbac
 
 Nếu app Zalo của bạn đã được duyệt quyền đọc số điện thoại thì bỏ qua được bước 1–2: hệ thống tự khớp theo số điện thoại chủ trọ đã nhập trong hồ sơ.
 
-## 5. Cài app lên điện thoại (PWA)
+## 5. Cài app lên điện thoại (PWA), logo và SEO
 
 App cài được lên màn hình chính, mở ra không có thanh địa chỉ, trông như app thật. Không qua CH Play hay App Store, không phải chờ duyệt.
 
@@ -337,17 +377,27 @@ npm run icons
 
 Next tự chèn thẻ `<link>` và `<meta property="og:image">` cho các file này — không phải khai gì thêm.
 
-**Ý tưởng thiết kế: nhà trọ, không phải "cái nhà".** Một mái nhà, thân chia làm hai tầng bằng một dải ngang, mỗi tầng hai phòng — đó là thứ phân biệt nhà trọ với biểu tượng ngôi nhà bất kỳ. Hai ô hổ phách nằm chéo nhau là hai phòng đang có người ở; chúng cũng là điểm nhìn giữ cho icon không thành một khối trắng.
+**Ý tưởng thiết kế: mái nhà che một ổ khóa.** Không phải "cái nhà" chung chung — nhà trọ này bán sự an tâm: cổng khóa thông minh, camera 24/7, giờ giấc tự do mà vẫn kín. Mái vươn rộng hơn hẳn thân khóa để đọc ra *được che chở* chứ không phải *bị nhốt*. Lỗ khóa hổ phách là điểm ấm duy nhất, giữ cho icon không thành một khối teal câm.
+
+**Không có nền.** Bản cũ là một plate teal bo góc 112px; bỏ đi vì trên tab trình duyệt và thanh điều hướng nó trông như sticker dán đè. Nền đặc giờ chỉ còn ở ba chỗ không tránh được, và `generate-icons.mjs` tự trải màu kem `#fbfaf7` (hằng `PLATE_BG`, khớp `background_color` của manifest) vào:
+
+| File | Vì sao buộc phải đặc |
+| --- | --- |
+| `apple-icon.png` | iOS tô **đen** mọi vùng trong suốt của icon màn hình chính. Không phải tuỳ chọn. |
+| `maskable-*.png` | Android cắt theo hình launcher; thiếu nền thì hở bốn góc. |
+| `opengraph-image.png` | Thẻ chia sẻ link là một tấm ảnh, không có khái niệm alpha. |
+
+Còn lại — favicon, `icon.png`, `icon-192/512` — nền trong suốt.
 
 **Thiết kế cho 32px trước, 512px sau.** Favicon là nơi mọi logo đẹp bị vỡ. Ba ràng buộc rút ra từ việc render thử ở cỡ thật:
 
-- **Hình khối đặc, không nét viền.** Nét mảnh nhoè thành xám khi thu nhỏ.
-- **Ít chi tiết, mỗi chi tiết đủ to.** Bốn ô cửa, ô nào cũng ≥ 40px trên khung 512 (≈ 2,5px ở cỡ 32). Bản thử với ba cửa sổ một hàng nhòe thành một vệt gạch ở 32px.
-- **Dải ngăn tầng dày 26px.** Một đường ngang dày là chi tiết sống sót tốt nhất khi thu nhỏ, và nó chính là chi tiết mang nghĩa.
+- **Đúng ba khối: mái, quai khóa, thân khóa.** Thêm khối thứ tư là 32px nát.
+- **Nét mái dày 58px** (≈ 3,6px ở cỡ 32). Mảnh hơn là mất khi thu nhỏ.
+- **Hổ phách không bao giờ chạm nền trang.** `#f6b93b` đặt thẳng lên nền kem chỉ được ~1,7:1 và mép bị nhòe, nên lỗ khóa luôn nằm lọt trong khối teal.
 
-**Thay bằng logo của bạn:** ghi đè `assets/logo.svg` rồi chạy lại lệnh trên. File nguồn có thể là `.svg` hoặc `.png` (đổi tên thành `logo.png`), miễn là vuông. Hình chính nên nằm gọn trong 60% ở giữa — Android cắt icon theo hình của launcher (tròn / vuông bo / giọt nước) và xén mất viền.
+**Thay bằng logo của bạn:** ghi đè `assets/logo.svg` rồi chạy lại lệnh trên. File nguồn có thể là `.svg` hoặc `.png` (đổi tên thành `logo.png`), miễn là vuông và giữ kênh alpha. Hình chính nên nằm gọn trong 60% ở giữa — Android cắt icon theo hình của launcher (tròn / vuông bo / giọt nước) và xén mất viền.
 
-Nếu đổi màu nền, đổi ở **ba chỗ cùng lúc**, nếu không icon và giao diện sẽ lệch màu nhau: `assets/logo.svg`, hằng `BRAND_BG` trong `scripts/generate-icons.mjs`, và `src/components/common/logo.tsx`.
+Màu teal của logo là `#0e8f89`, **sáng hơn một nấc** so với `--primary` (`#0d7d78`) trong `globals.css`. Cố ý: logo không nền phải sống trên cả thanh tab sáng lẫn tối, mà `#0d7d78` trên nền tab tối chỉ đạt ~2,4:1. Đổi màu thì đổi ở **ba chỗ cùng lúc**: `assets/logo.svg`, `assets/logo-mark.svg`, và hằng `INK` trong `src/components/common/logo.tsx`.
 
 ### Logo trong giao diện
 
@@ -358,7 +408,39 @@ Nếu đổi màu nền, đổi ở **ba chỗ cùng lúc**, nếu không icon v
 
 Màu logo **cố ý không theo theme**: giống nhau ở chế độ sáng và tối, như mọi logo.
 
-`assets/logo-mark.svg` là bản không nền, dùng khi in ra giấy — đầu thư, hợp đồng. App không đọc file này.
+`assets/logo-mark.svg` là bản ăn theo màu chữ (`currentColor`), dùng khi đặt logo lên nền có sẵn — đầu thư, hợp đồng in ra, con dấu, áo. App không đọc file này.
+
+### SEO: thẻ chia sẻ, sitemap, robots
+
+Ba mảnh, mỗi mảnh làm một việc:
+
+| Mảnh | Ở đâu | Việc |
+| --- | --- | --- |
+| `pageMeta()` | `src/lib/seo.ts` | Dựng đủ bộ cho một trang: title, description, canonical, `og:*`, `twitter:*`, ảnh xem trước |
+| `sitemap.xml` | `src/app/sitemap.ts` | Ba URL công khai, để bot khỏi phải tự dò |
+| `robots.txt` | `src/app/robots.ts` | Chặn bot **tải** khu sau đăng nhập, và trỏ tới sitemap |
+
+**Mặc định là CẤM lập chỉ mục.** `src/app/layout.tsx` đặt `robots: noIndex` cho toàn site; chỉ `(marketing)/layout.tsx` mở lại bằng `robots: indexable`. Thêm một trang riêng tư mới mà quên khai gì thì nó im lặng nằm **ngoài** Google — chứ không im lặng lọt vào. Ba trang được lập chỉ mục là `/`, `/rooms`, `/contact`.
+
+**Thêm một trang công khai mới** thì phải sửa **ba** chỗ, lệch nhau là hỏng lặng lẽ:
+
+1. `PUBLIC_PATHS` trong `src/proxy.ts` — thiếu thì bot bị đẩy sang `/login` và Google lập chỉ mục trang đăng nhập.
+2. `src/app/sitemap.ts` — thêm đường dẫn.
+3. Đặt trang dưới `(marketing)/` để thừa hưởng `robots: indexable`, hoặc khai riêng.
+
+**Vì sao mỗi trang phải gắn lại ảnh OG.** Next có quy ước tự động: `src/app/opengraph-image.png` gắn `og:image` cho mọi route. Nhưng quy ước đó gắn ảnh theo **từng segment**, và `openGraph` của segment con **thay thế** nguyên khối của cha chứ không trộn vào. Nên ngay khi một trang khai `openGraph` để có `og:title` riêng, ảnh biến mất. `pageMeta()` gắn lại — trỏ đúng vào route mà quy ước kia sinh ra, không phải file thứ hai.
+
+**`og:title` dùng dạng `{ absolute }`.** Chuỗi thường bị template `%s · Nhà trọ 1-47` của layout gốc nối thêm lần nữa, ra `Phòng trống · Nhà trọ 1-47 · Nhà trọ 1-47`.
+
+> ⚠️ **`NEXT_PUBLIC_SITE_URL` phải là domain thật khi deploy.** `metadataBase`, canonical, `og:image` và `Sitemap:` trong robots.txt đều dựng từ biến này. Để trống thì mọi URL tuyệt đối trỏ về `http://localhost:3000`, và thẻ xem trước trên Zalo/Messenger mất ảnh.
+
+Kiểm nhanh sau khi deploy:
+
+```bash
+curl -s https://<domain>/robots.txt
+curl -s https://<domain>/sitemap.xml
+curl -s https://<domain>/rooms | grep -o '<meta property="og:[^>]*>'
+```
 
 ### Người thuê cài thế nào
 
@@ -732,8 +814,9 @@ src/
 app/globals.css          design token + khối `@media print` cho bản in hoá đơn
 public/sw.js             service worker — ĐỌC ghi chú bảo mật ở đầu file
 assets/logo.svg          nguồn của TOÀN BỘ icon — sửa file này rồi `npm run icons`
-assets/logo-mark.svg     bản không nền, dùng khi in ra giấy
+assets/logo-mark.svg     bản currentColor, dùng khi in ra giấy / đặt lên nền có sẵn
 scripts/generate-icons.mjs · scripts/copy-wasm.mjs
+scripts/import-room-photos.mjs  nạp hàng loạt ảnh phòng — `npm run import-photos`
 ```
 
 ### Vài quyết định đáng biết

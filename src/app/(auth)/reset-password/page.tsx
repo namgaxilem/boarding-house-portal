@@ -3,8 +3,14 @@ import { Link } from "@/components/common/link";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ResetPasswordForm } from "@/features/auth/components/password-forms";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Đặt lại mật khẩu" };
+export const metadata: Metadata = pageMeta({
+  title: "Đặt lại mật khẩu",
+  description:
+    "Đặt mật khẩu mới cho tài khoản người thuê.",
+  path: "/reset-password",
+});
 
 export default function ResetPasswordPage() {
   return (

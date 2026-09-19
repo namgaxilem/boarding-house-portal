@@ -20,8 +20,13 @@ import { getMaintenanceRequest } from "@/features/maintenance/queries";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/dal";
 import { formatDateTime } from "@/lib/format";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Chi tiết báo hỏng" };
+export const metadata: Metadata = pageMeta({
+  title: "Chi tiết báo hỏng",
+  description:
+    "Nội dung phiếu báo hỏng, ảnh đính kèm và tiến độ xử lý.",
+});
 
 export const instant = true;
 
