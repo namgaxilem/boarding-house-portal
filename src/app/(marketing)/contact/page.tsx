@@ -14,13 +14,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CopyButton } from "@/components/common/copy-button";
 import { houseConfig, fullAddress, telHref, zaloHref } from "@/config/site";
 import { formatPhone } from "@/lib/format";
+import { JsonLd } from "@/components/common/json-ld";
 import { pageMeta } from "@/lib/seo";
+import { breadcrumbJsonLd, clampDescription } from "@/lib/structured-data";
 
 export const metadata: Metadata = pageMeta({
   title: "Liên hệ",
-  description:
+  description: clampDescription(
     `Địa chỉ, số điện thoại và Zalo của ${houseConfig.name} — ${fullAddress()}. ` +
-    `Chủ trọ nhận liên hệ ${houseConfig.contact.officeHours}.`,
+      `Chủ trọ nhận liên hệ ${houseConfig.contact.officeHours}.`,
+  ),
   path: "/contact",
 });
 
@@ -36,9 +39,11 @@ export default function ContactPage() {
         </p>
       </header>
 
+      <JsonLd data={breadcrumbJsonLd([{ name: "Liên hệ", path: "/contact" }])} />
+
       <Card>
         <CardHeader>
-          <CardTitle>Chủ trọ</CardTitle>
+          <CardTitle as="h2">Chủ trọ</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 pt-4">
           <Row icon={<PhoneIcon />} label="Điện thoại">
@@ -89,7 +94,7 @@ export default function ContactPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Địa chỉ</CardTitle>
+          <CardTitle as="h2">Địa chỉ</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 pt-4">
           <Row icon={<MapPinIcon />} label="Nhà trọ">
@@ -109,7 +114,7 @@ export default function ContactPage() {
       {bank && (
         <Card>
           <CardHeader>
-            <CardTitle>Chuyển khoản tiền phòng</CardTitle>
+            <CardTitle as="h2">Chuyển khoản tiền phòng</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 pt-4">
             <Row icon={<LandmarkIcon />} label="Ngân hàng">

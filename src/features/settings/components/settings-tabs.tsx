@@ -2,8 +2,9 @@
 
 import { Link } from "@/components/common/link";
 import { usePathname } from "next/navigation";
-import { BuildingIcon, KeyRoundIcon, QrCodeIcon, WifiIcon } from "lucide-react";
+import { BotIcon, BuildingIcon, KeyRoundIcon, QrCodeIcon, WifiIcon } from "lucide-react";
 
+import { houseConfig } from "@/config/site";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -11,6 +12,12 @@ const TABS = [
   { href: "/admin/settings/payments", label: "Nhận tiền", icon: QrCodeIcon },
   { href: "/admin/settings/wifi", label: "Wifi", icon: WifiIcon },
   { href: "/admin/settings/account", label: "Tài khoản", icon: KeyRoundIcon },
+  // Cờ ở config, không phải biến môi trường: cờ quyết định tab có HIỆN không,
+  // env quyết định nó có CHẠY không. Bật cờ mà chưa điền env thì trang hiện
+  // checklist thiết lập — giống hệt /admin/gate.
+  ...(houseConfig.features.assistant
+    ? [{ href: "/admin/settings/integrations", label: "Trợ lý", icon: BotIcon }]
+    : []),
 ];
 
 /**

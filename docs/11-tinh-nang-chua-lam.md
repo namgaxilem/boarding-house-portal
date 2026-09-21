@@ -85,7 +85,7 @@ Repo được thiết kế cho **một nhà trọ 10 phòng**, và nhiều lựa
 | **Không có tìm kiếm** | Lọc theo trạng thái thì có; ô tìm theo tên/mã thì không | Trên ~30 người thuê |
 | **Cấu hình nhà trọ nằm trong code** | `src/config/site.ts`, cố ý không có bảng `settings` | Khi quản nhiều hơn một nhà trọ |
 | **Một nhà trọ mỗi lần deploy** | Không có khái niệm `house_id` ở đâu trong lược đồ | Ngay khi có nhà trọ thứ hai |
-| **Không có nhật ký thao tác của admin** | Chỉ `id_document_access_log` cho ảnh giấy tờ | Khi có nhiều hơn một người quản trị |
+| **Nhật ký thao tác của admin — một phần** | `admin_audit_log` ghi MỌI lời gọi của trợ lý Telegram (kể cả lần đọc); Server Action trên web thì vẫn chưa ghi. Xem [14](14-tro-ly-telegram.md) | Khi có nhiều hơn một người quản trị |
 | **Gói free Supabase** | 1GB Storage, 5GB băng thông/tháng; hạn mức ảnh siết ở `lib/upload-policy.ts` | Đã được tính trước, xem [04](04-tang-du-lieu.md#nén-ảnh-trước-khi-tải-lên) |
 
 Không cái nào cần sửa **bây giờ**. Chúng là ranh giới của thiết kế, và thiết kế đó phù hợp với

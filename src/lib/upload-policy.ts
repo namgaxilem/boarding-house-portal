@@ -120,6 +120,28 @@ export const MAINTENANCE_PHOTO_POLICY: UploadPolicy = {
   maxPerParent: 6,
 };
 
+/**
+ * Ảnh trong bài viết.
+ *
+ * 1280px, không phải 1600 như ảnh phòng: cột chữ của trang blog rộng tối đa
+ * ~768px CSS, nên 1280 đã dư cho màn hình 1.5x. Mỗi bài tối đa 4 ảnh (bìa + 3) —
+ * ảnh báo hỏng được 6 vì một phiếu sửa chữa cần nhiều góc, một bài viết thì không.
+ *
+ * ⚠️ Đổi số ở đây thì sửa cả `post_images_enforce_quota()` trong
+ * `supabase/migrations/20260920000013_posts.sql` — trần 4 ảnh và 1.5MB mỗi bài
+ * được ép ở đó, và đó mới là chốt chặn thật.
+ */
+export const POST_IMAGE_POLICY: UploadPolicy = {
+  acceptedTypes: IMAGE_TYPES,
+  maxInputBytes: MAX_INPUT_BYTES,
+  maxDimension: 1280,
+  quality: 0.8,
+  targetBytes: 250 * 1024,
+  maxUploadBytes: 900 * 1024,
+  maxPerUpload: 4,
+  maxPerParent: 4,
+};
+
 /** Cho `<input accept="...">`. */
 export function acceptAttribute(policy: UploadPolicy) {
   return policy.acceptedTypes.join(",");

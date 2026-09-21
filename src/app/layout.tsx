@@ -6,6 +6,7 @@ import { NavProgress } from "@/components/common/nav-progress";
 import { ServiceWorkerRegistration } from "@/components/common/service-worker";
 import { ThemeProvider } from "@/components/common/theme";
 import { houseConfig } from "@/config/site";
+import { env } from "@/lib/env";
 import { defaultOgImage, metadataBase, noIndex, siteUrl } from "@/lib/seo";
 
 import "./globals.css";
@@ -68,6 +69,12 @@ export const metadata: Metadata = {
     description: houseConfig.description,
     images: [defaultOgImage],
   },
+
+  // Thẻ xác minh Search Console. Biến trống → Next bỏ hẳn thẻ, không chèn
+  // `content=""` rỗng. Xem `googleSiteVerification` trong src/lib/env.ts.
+  ...(env.googleSiteVerification
+    ? { verification: { google: env.googleSiteVerification } }
+    : {}),
 
   applicationName: houseConfig.shortName,
 

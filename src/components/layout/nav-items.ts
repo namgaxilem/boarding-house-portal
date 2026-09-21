@@ -11,6 +11,7 @@ import {
   WifiIcon,
   UserIcon,
   PhoneIcon,
+  NotebookPenIcon,
   ScrollTextIcon,
   WrenchIcon,
   type LucideIcon,
@@ -25,13 +26,17 @@ export interface NavItem {
   /**
    * Khoá trong `AdminTodo` để lấy số hiện trên huy hiệu.
    *
-   * Ba mục có: giấy tờ, báo hỏng, và cổng. Hai cái đầu là chỗ NGƯỜI KHÁC tạo ra
-   * việc cho chủ trọ. Cái thứ ba khác: việc do chính hệ thống phát hiện ra —
-   * người đã trả phòng mà mã cổng vẫn còn — và đó đúng là loại việc con người
-   * quên. Mọi mục còn lại là việc chủ trọ tự chủ động vào làm, và một con số đỏ
-   * ở đó chỉ dạy người ta bỏ qua huy hiệu.
+   * Bốn mục có: giấy tờ, báo hỏng, bài viết, và cổng. Ba cái đầu là chỗ NGƯỜI
+   * KHÁC tạo ra việc cho chủ trọ. Cái thứ tư khác: việc do chính hệ thống phát
+   * hiện ra — người đã trả phòng mà mã cổng vẫn còn — và đó đúng là loại việc
+   * con người quên. Mọi mục còn lại là việc chủ trọ tự chủ động vào làm, và một
+   * con số đỏ ở đó chỉ dạy người ta bỏ qua huy hiệu.
    */
-  badge?: "pendingIdDocuments" | "openMaintenance" | "gateCredentialsToRevoke";
+  badge?:
+    | "pendingIdDocuments"
+    | "openMaintenance"
+    | "pendingPosts"
+    | "gateCredentialsToRevoke";
 }
 
 export const ADMIN_NAV: NavItem[] = [
@@ -53,6 +58,13 @@ export const ADMIN_NAV: NavItem[] = [
     icon: IdCardIcon,
     matchPrefix: true,
     badge: "pendingIdDocuments",
+  },
+  {
+    href: "/admin/posts",
+    label: "Bài viết",
+    icon: NotebookPenIcon,
+    matchPrefix: true,
+    badge: "pendingPosts",
   },
   {
     href: "/admin/gate",
@@ -81,6 +93,7 @@ export const TENANT_NAV: NavItem[] = [
 /** Reachable from the tenant home page rather than the bottom bar. */
 export const TENANT_SECONDARY: NavItem[] = [
   { href: "/me/maintenance", label: "Báo hỏng", icon: WrenchIcon },
+  { href: "/me/posts", label: "Bài viết của tôi", icon: NotebookPenIcon },
   { href: "/me/wifi", label: "Mật khẩu wifi", icon: WifiIcon },
   { href: "/me/identity", label: "Giấy tờ tuỳ thân", icon: IdCardIcon },
   { href: "/me/contact", label: "Liên hệ chủ trọ", icon: PhoneIcon },

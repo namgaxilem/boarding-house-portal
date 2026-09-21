@@ -10,8 +10,10 @@ import {
   MarketingAuthSlot,
   MarketingAuthSlotFallback,
 } from "@/components/layout/marketing-auth";
+import { JsonLd } from "@/components/common/json-ld";
 import { houseConfig, fullAddress } from "@/config/site";
 import { indexable } from "@/lib/seo";
+import { lodgingBusinessJsonLd } from "@/lib/structured-data";
 
 /**
  * Khu DUY NHẤT được lập chỉ mục.
@@ -30,6 +32,10 @@ export default function MarketingLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <div className="flex min-h-dvh flex-col">
+      {/* Danh tính nhà trọ cho Google, có mặt trên cả ba trang công khai. Đặt ở
+          layout vì nó không đổi theo trang; khối riêng của từng trang (danh
+          sách phòng, đường dẫn phân cấp) nằm trong page tương ứng. */}
+      <JsonLd data={lodgingBusinessJsonLd()} />
 
       <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-3 px-4">
@@ -39,6 +45,11 @@ export default function MarketingLayout({
             <Button variant="ghost" asChild className="hidden sm:inline-flex">
               <Link href="/rooms">Phòng trống</Link>
             </Button>
+            {houseConfig.features.publicBlog && (
+              <Button variant="ghost" asChild className="hidden sm:inline-flex">
+                <Link href="/blog">Bài viết</Link>
+              </Button>
+            )}
             <Button variant="ghost" asChild className="hidden sm:inline-flex">
               <Link href="/contact">Liên hệ</Link>
             </Button>
@@ -75,6 +86,11 @@ export default function MarketingLayout({
             <Link href="/rooms" className="underline underline-offset-4">
               Phòng trống
             </Link>
+            {houseConfig.features.publicBlog && (
+              <Link href="/blog" className="underline underline-offset-4">
+                Bài viết
+              </Link>
+            )}
             <Link href="/contact" className="underline underline-offset-4">
               Liên hệ
             </Link>

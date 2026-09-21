@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createServerClient } from "@supabase/ssr";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 import { env } from "@/lib/env";
@@ -30,5 +31,24 @@ export async function createClient() {
         }
       },
     },
+  });
+}
+
+/**
+ * Client KHÔNG gắn cookie, dùng anon key.
+ *
+ * Lý do tồn tại: `createClient()` ở trên gọi `cookies()`, và gọi `cookies()` bên
+ * trong một hàm `"use cache"` thì ném lỗi lúc chạy. Trang /blog và /sitemap.xml
+ * đọc database qua `"use cache"` (xem `lib/db/public-posts.ts`), nên chúng cần
+ * một client không đụng tới request hiện tại.
+ *
+ * KHÔNG phải một lối tắt bảo mật: nó vẫn mang anon key, nên mọi truy vấn chạy
+ * dưới policy của vai `anon`. Bảng `posts` cấp quyền cho `anon` THEO CỘT, nên
+ * đường đi này bắt buộc dùng `POST_PUBLIC_SELECT` — `select("*")` sẽ bị Postgres
+ * từ chối cả câu.
+ */
+export function createPublicClient() {
+  return createSupabaseClient(env.supabaseUrl, env.supabaseAnonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
   });
 }

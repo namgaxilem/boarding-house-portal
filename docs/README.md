@@ -21,6 +21,9 @@ tất cả nằm ở [`../README.md`](../README.md) ở gốc repo.
 | 09 | [Chạy & triển khai](09-chay-va-trien-khai.md) | Dev local/cloud, script, CI, cron |
 | 10 | [Rà soát cấu trúc](10-ra-soat-cau-truc.md) | Kết quả audit: code chết, trùng lặp, build/CI đang hỏng |
 | 11 | [Tính năng chưa làm](11-tinh-nang-chua-lam.md) | Khoảng trống còn lại, giới hạn quy mô, thứ đã cố ý loại bỏ |
+| 12 | [SEO & dữ liệu có cấu trúc](12-seo.md) | `pageMeta()`, JSON-LD, sitemap, robots, cấu trúc tiêu đề, còn thiếu gì |
+| 13 | [Bài viết](13-bai-viet.md) | Luồng duyệt bài, `visibility`, `"use cache"`, slug, hạn mức, phân trang |
+| 14 | [Trợ lý Telegram](14-tro-ly-telegram.md) | Liên kết danh tính, `runAsService`, bộ tool, prompt injection, chi phí |
 
 ## Tài liệu theo từng trang
 

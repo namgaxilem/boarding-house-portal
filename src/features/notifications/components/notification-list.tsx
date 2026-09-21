@@ -8,6 +8,7 @@ import {
   BatteryLowIcon,
   FingerprintIcon,
   KeyRoundIcon,
+  NotebookPenIcon,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,8 @@ const ICON: Record<NotificationType, typeof BellIcon> = {
   gate_alert: KeyRoundIcon,
   gate_battery_low: BatteryLowIcon,
   gate_fingerprint_new: FingerprintIcon,
+  post_pending: NotebookPenIcon,
+  post_reviewed: NotebookPenIcon,
   general: BellIcon,
 };
 
@@ -44,6 +47,8 @@ const ICON_STYLE: Record<NotificationType, string> = {
   gate_alert: "bg-destructive/10 text-destructive",
   gate_battery_low: "bg-warning/15 text-warning-foreground dark:text-warning",
   gate_fingerprint_new: "bg-info/12 text-info",
+  post_pending: "bg-warning/15 text-warning-foreground dark:text-warning",
+  post_reviewed: "bg-info/12 text-info",
   general: "bg-secondary text-muted-foreground",
 };
 

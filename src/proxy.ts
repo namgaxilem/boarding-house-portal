@@ -28,7 +28,25 @@ const PUBLIC_PATHS = new Set([
   "/reset-password",
 ]);
 
-const PUBLIC_PREFIXES = ["/api/health", "/api/cron", "/auth"];
+const PUBLIC_PREFIXES = ["/api/health", "/api/cron", "/auth", "/api/telegram"];
+//  `/api/telegram` mang secret riêng trong header và không có phiên nào để làm
+//  mới, nên nó thuộc đúng nhóm này: đi thẳng, không qua updateSupabaseSession.
+//  Thiếu nó thì Telegram nhận về HTML trang /login và ghi webhook error.
+
+/**
+ * Đường dẫn công khai có phần ĐỘNG ở đuôi: `/blog/<slug>`.
+ *
+ * KHÁC `PUBLIC_PREFIXES` ở trên, và khác một cách quan trọng. Nhánh đó return
+ * sớm và BỎ QUA `updateSupabaseSession()` — đúng cho `/api/cron` và `/auth`, vì
+ * chúng không có phiên nào để làm mới. Nhưng một bài viết thì người đã đăng nhập
+ * cũng đọc, và nếu request của họ không đi qua bước làm mới thì access token
+ * ngừng xoay vòng trong lúc họ đọc, rồi ô đăng nhập trên header lật về "Đăng
+ * nhập" giữa chừng.
+ *
+ * Nên danh sách này chỉ tham gia vào quyết định "trang này có cần đăng nhập
+ * không", chứ không cắt ngắn đường đi.
+ */
+const PUBLIC_PATH_PREFIXES = ["/blog"];
 
 /** Supabase stores its session as `sb-<project-ref>-auth-token[.n]` cookies. */
 function clearAuthCookies(request: NextRequest, response: NextResponse) {
@@ -54,7 +72,11 @@ export async function proxy(request: NextRequest) {
   }
 
   const { response, user } = await updateSupabaseSession(request);
-  const isPublic = PUBLIC_PATHS.has(pathname);
+  const isPublic =
+    PUBLIC_PATHS.has(pathname) ||
+    PUBLIC_PATH_PREFIXES.some(
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+    );
 
   if (!user) {
     if (isPublic) return response;

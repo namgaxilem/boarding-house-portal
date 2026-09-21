@@ -38,6 +38,24 @@ export type MaintenanceStatus = "open" | "in_progress" | "resolved" | "closed";
 
 export type MaintenancePriority = "low" | "normal" | "urgent";
 
+/**
+ * Vòng đời một bài viết.
+ *
+ * `archived` KHÔNG phải "đã xoá": dòng ở lại vĩnh viễn để giữ chỗ cho slug. Xoá
+ * hẳn rồi để một bài mới trùng tiêu đề chiếm lại đúng URL đó là cách làm hỏng
+ * chỉ mục Google mà không ai nhận ra.
+ */
+export type PostStatus = "draft" | "pending" | "published" | "rejected" | "archived";
+
+/**
+ * Ai đọc được bài.
+ *
+ * `internal` nghĩa là "dành cho người trong nhà", không phải "bí mật" — nó thừa
+ * hưởng `robots: noIndex` của layout gốc. `public` là thứ duy nhất vào sitemap,
+ * và CHỈ CHỦ TRỌ đặt được giá trị này (chốt ở WITH CHECK của `posts_insert_own`).
+ */
+export type PostVisibility = "public" | "internal";
+
 export type NotificationType =
   | "invoice_issued"
   | "invoice_paid"
@@ -47,6 +65,8 @@ export type NotificationType =
   | "gate_alert"
   | "gate_battery_low"
   | "gate_fingerprint_new"
+  | "post_pending"
+  | "post_reviewed"
   | "general";
 
 /**
@@ -191,6 +211,51 @@ export interface IdDocument {
 export interface IdDocumentPhotos {
   frontUrl: string | null;
   backUrl: string | null;
+}
+
+export interface PostImage {
+  id: string;
+  postId: string;
+  /** Đường dẫn trong bucket công khai `post-images`, dạng "<postId>/<uuid>.webp". */
+  storagePath: string;
+  /** URL công khai dựng từ `storagePath`. */
+  url: string;
+  alt: string | null;
+  sortOrder: number;
+}
+
+export interface Post {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string | null;
+  body: string;
+  /** Đường dẫn ảnh bìa trong bucket; `coverUrl` là bản dùng được. */
+  coverPath: string | null;
+  coverUrl: string | null;
+  status: PostStatus;
+  visibility: PostVisibility;
+  /** NULL khi tài khoản tác giả đã bị xoá — `authorName` vẫn còn. */
+  authorId: string | null;
+  authorName: string;
+  publishedAt: string | null;
+  reviewNote: string | null;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PostDetail extends Post {
+  images: PostImage[];
+}
+
+/** Một trang kết quả. Chỉ `/blog` phân trang — xem docs/13-bai-viet.md. */
+export interface PostPage {
+  items: Post[];
+  total: number;
+  page: number;
+  pageCount: number;
 }
 
 export interface WifiNetwork {
@@ -561,6 +626,60 @@ export interface AdminStats {
   unpaidAmount: number;
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Trợ lý Telegram                                                           */
+/* -------------------------------------------------------------------------- */
+
+/** Nơi một lời gọi tool đi vào. `web` để dành cho khi Server Action cũng ghi nhật ký. */
+export type AgentChannel = "telegram" | "mcp" | "web";
+
+export type AuditOutcome = "pending" | "ok" | "error" | "denied";
+
+/**
+ * Một máy Telegram đã gắn với một tài khoản.
+ *
+ * `chatId` là số của Telegram, không phải id nội bộ — nhưng nó KHÔNG BAO GIỜ tự
+ * mình chứng minh được gì. Nó chỉ có nghĩa sau khi `redeem_telegram_link_code()`
+ * xác nhận người cầm nó biết một mã sinh từ phiên web đang đăng nhập.
+ */
+export interface TelegramLink {
+  chatId: number;
+  profileId: string;
+  telegramUsername: string | null;
+  linkedAt: string;
+  lastSeenAt: string | null;
+  revokedAt: string | null;
+}
+
+/** Ai đang nói chuyện với bot, đã xác minh vai. */
+export interface TelegramActor {
+  chatId: number;
+  profile: SessionUser;
+}
+
+export interface AuditLogEntry {
+  id: number;
+  occurredAt: string;
+  profileId: string | null;
+  actorEmail: string;
+  channel: AgentChannel;
+  toolName: string;
+  readOnly: boolean;
+  args: Record<string, unknown>;
+  outcome: AuditOutcome;
+  errorCode: string | null;
+  durationMs: number | null;
+  requestId: string;
+}
+
+/** Số đã dùng trong NGÀY của một người. Trần tính bằng tiền, xem lib/agent/budget.ts. */
+export interface AgentUsage {
+  requests: number;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+}
+
 /**
  * Việc đang chờ chủ trọ làm.
  *
@@ -575,6 +694,8 @@ export interface AdminTodo {
   /** Hoá đơn nháp chưa phát hành — người thuê chưa thấy gì. */
   draftInvoices: number;
   pendingIdDocuments: number;
+  /** Bài viết người thuê đã gửi, đang chờ duyệt. */
+  pendingPosts: number;
   /** Phiếu báo hỏng ở trạng thái 'open' hoặc 'in_progress'. */
   openMaintenance: number;
   urgentMaintenance: number;

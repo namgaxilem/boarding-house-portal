@@ -157,7 +157,8 @@ Cổng local: API 54321 · DB 54322 · Studio 54323 · Mailpit 54324 · pooler 5
 | `NEXT_PUBLIC_SUPABASE_URL` | ✅ | Đọc cả lúc runtime lẫn lúc đọc `next.config.ts` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | Thiếu → `assertSupabaseConfigured()` ném lỗi ở request đầu tiên |
 | `SUPABASE_SERVICE_ROLE_KEY` | ◐ | Cần cho thao tác tài khoản người thuê + script `create-admin` |
-| `NEXT_PUBLIC_SITE_URL` | ○ | Mặc định `http://localhost:3000` |
+| `NEXT_PUBLIC_SITE_URL` | ○ | Mặc định `http://localhost:3000`. **Bắt buộc khi deploy** — mọi URL tuyệt đối của SEO dựng từ đây |
+| `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` | ○ | Trống → không chèn thẻ xác minh Search Console |
 | `CRON_SECRET` | ○ | Thiếu → `/api/cron/*` trả **503** (fail-closed) |
 | `RESEND_API_KEY` + `EMAIL_FROM` | ○ | Thiếu cả hai → thông báo chỉ in-app |
 | `TTLOCK_*` (4 biến) | ○ | Thiếu → `/admin/gate` hiện checklist thiết lập |

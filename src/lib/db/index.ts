@@ -23,6 +23,8 @@ export type {
   MeterReadingInput,
   NotificationInput,
   PaymentAccountInput,
+  PostFilter,
+  PostInput,
   RecentEvent,
   Repository,
   Roommate,

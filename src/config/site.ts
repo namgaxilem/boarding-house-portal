@@ -173,6 +173,14 @@ export const houseConfig = {
     publicLanding: true,
     publicRoomList: true,
     /**
+     * Trang /blog và các bài CÔNG KHAI.
+     *
+     * Tắt cờ này thì /blog trả 404 và sitemap không liệt kê bài nào — nhưng bài
+     * NỘI BỘ ở /me/posts vẫn chạy. Hai thứ tách nhau vì chúng phục vụ hai việc
+     * khác hẳn: thông báo cho người đang thuê, và quảng bá cho người chưa thuê.
+     */
+    publicBlog: true,
+    /**
      * Khoá cổng thông minh TTLock. Bật thì hiện mục "Cổng" trên thanh quản trị.
      *
      * Hai công tắc, cố ý:
@@ -184,6 +192,14 @@ export const houseConfig = {
      * TTLock duyệt tài khoản nhà phát triển.
      */
     smartGate: true,
+    /**
+     * Trợ lý Telegram cho chủ trọ.
+     *
+     * Hai công tắc như `smartGate`: cờ này quyết định tab "Trợ lý" có hiện trong
+     * /admin/settings không; TELEGRAM_* và ANTHROPIC_API_KEY quyết định nó có
+     * chạy không. Bật cờ mà chưa điền env thì trang hiện checklist thiết lập.
+     */
+    assistant: true,
   },
 
   /**

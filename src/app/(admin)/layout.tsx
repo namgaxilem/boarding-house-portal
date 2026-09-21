@@ -34,6 +34,7 @@ export default async function AdminLayout({
     .then((todo) => ({
       pendingIdDocuments: todo.pendingIdDocuments,
       openMaintenance: todo.openMaintenance,
+      pendingPosts: todo.pendingPosts,
       gateCredentialsToRevoke: todo.gateCredentialsToRevoke.length,
     }))
     .catch(() => ({}));

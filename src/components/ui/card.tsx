@@ -25,9 +25,24 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<"h3">) {
+/**
+ * `as` đổi CẤP tiêu đề mà không đổi cỡ chữ.
+ *
+ * Mặc định `h3` đúng cho phần lớn chỗ trong app: card nằm dưới một `h2` của
+ * khối. Nhưng ở trang công khai như `/contact`, card LÀ khối cấp một — để `h3`
+ * thì cấu trúc nhảy thẳng h1 → h3. Trình đọc màn hình mất một bậc điều hướng,
+ * và bot thấy một trang chỉ có đúng một tiêu đề rồi hết.
+ *
+ * Chỉ mở ba cấp: `h2`–`h4`. Không nhận `div` — một card không có tiêu đề thì
+ * đừng dùng `CardTitle`, đừng biến nó thành thẻ trung tính.
+ */
+function CardTitle({
+  className,
+  as: Tag = "h3",
+  ...props
+}: React.ComponentProps<"h3"> & { as?: "h2" | "h3" | "h4" }) {
   return (
-    <h3
+    <Tag
       data-slot="card-title"
       className={cn("text-base font-semibold leading-tight tracking-tight", className)}
       {...props}

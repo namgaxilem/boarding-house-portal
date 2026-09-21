@@ -79,3 +79,4 @@ danh sách phòng trống đổi vài ngày một lần chứ không đổi theo
 | `/` | [page](page/README.md) | 193 |
 | `/rooms` | [rooms](rooms/README.md) | 176 |
 | `/contact` | [contact](contact/README.md) | 157 |
+| `/blog`, `/blog/[slug]` | [blog](blog/README.md) | 153 + 160 |

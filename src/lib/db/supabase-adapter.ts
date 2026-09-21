@@ -2,7 +2,11 @@ import "server-only";
 
 import type { PostgrestError } from "@supabase/supabase-js";
 
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/server";
+// Không import `createClient` từ `@/lib/supabase/server` nữa: `./db-client`
+// bọc nó lại để đường đi của bot/MCP chạy được bằng service-role mà 91 lời
+// gọi `await createClient()` bên dưới không phải sửa. Xem db-client.ts.
+import { createClient } from "./db-client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
 import { todayInHouseTz } from "@/lib/format";
@@ -10,6 +14,9 @@ import { lineAmount } from "@/lib/period";
 import type {
   AdminStats,
   AdminTodo,
+  AgentChannel,
+  AuditLogEntry,
+  AuditOutcome,
   AppNotification,
   GateCredential,
   GateCredentialToRevoke,
@@ -30,6 +37,11 @@ import type {
   MeterReadingWithRoom,
   NotificationType,
   PaymentAccount,
+  Post,
+  PostImage,
+  PostStatus,
+  PostVisibility,
+  TelegramLink,
   PaymentAccountKind,
   PaymentMethod,
   Profile,
@@ -305,6 +317,77 @@ interface MaintenanceRow {
   closed_by: string | null;
 }
 
+interface TelegramLinkRow {
+  chat_id: number;
+  profile_id: string;
+  telegram_username: string | null;
+  linked_at: string;
+  last_seen_at: string | null;
+  revoked_at: string | null;
+}
+
+interface AuditLogRow {
+  id: number;
+  occurred_at: string;
+  profile_id: string | null;
+  actor_email: string;
+  channel: AgentChannel;
+  tool_name: string;
+  read_only: boolean;
+  args: Record<string, unknown> | null;
+  outcome: AuditOutcome;
+  error_code: string | null;
+  duration_ms: number | null;
+  request_id: string;
+}
+
+interface AgentUsageRow {
+  requests: number | string;
+  input_tokens: number | string;
+  cached_input_tokens: number | string;
+  output_tokens: number | string;
+}
+
+interface PostRow {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string | null;
+  body: string;
+  cover_path: string | null;
+  status: PostStatus;
+  visibility: PostVisibility;
+  author_id: string | null;
+  author_name: string;
+  published_at: string | null;
+  review_note: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Hàng `posts` mà vai `anon` đọc được.
+ *
+ * Năm cột vắng mặt (`review_note`, `reviewed_at`, `reviewed_by`, `author_id`,
+ * `created_at`)
+ * không phải để cho gọn — chúng CHƯA ĐƯỢC CẤP QUYỀN cho `anon` ở migration 0013,
+ * và Postgres từ chối cả câu lệnh nếu chạm vào. Xem POST_PUBLIC_SELECT.
+ */
+type PublicPostRow = Omit<
+  PostRow,
+  "review_note" | "reviewed_at" | "reviewed_by" | "author_id" | "created_at"
+>;
+
+interface PostImageRow {
+  id: string;
+  post_id: string;
+  storage_path: string;
+  alt: string | null;
+  sort_order: number;
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Mappers                                                                   */
 /* -------------------------------------------------------------------------- */
@@ -429,6 +512,100 @@ function toRoomPhoto(row: RoomPhotoRow): RoomPhoto {
     caption: row.caption,
     sortOrder: row.sort_order,
     createdAt: row.created_at,
+  };
+}
+
+/**
+ * Ảnh trong bài viết. CÔNG KHAI, giống `room-photos` chứ không giống
+ * `maintenance-photos`: ảnh bìa phải vào được `og:image` và `next/image`, mà URL
+ * ký hạn 10 phút thì thẻ chia sẻ Zalo chết sau mười phút.
+ *
+ * Đánh đổi: ảnh đính vào một bài NỘI BỘ vẫn mở được nếu ai đó đoán trúng uuid.
+ * Ô tải ảnh nói thẳng câu đó cho người dùng.
+ */
+export const POST_IMAGE_BUCKET = "post-images";
+
+function publicPostImageUrl(storagePath: string) {
+  return `${env.supabaseUrl}/storage/v1/object/public/${POST_IMAGE_BUCKET}/${storagePath}`;
+}
+
+/** Mọi cột. Chỉ dùng cho đường đi ĐÃ ĐĂNG NHẬP. */
+const POST_SELECT = "*";
+
+/**
+ * Chỉ những cột đã `grant select (...) to anon` ở migration 0013.
+ *
+ * Dùng `*` trên đường công khai thì Postgres từ chối CẢ CÂU với "permission
+ * denied for column review_note" — không phải lọc bớt, mà là hỏng hẳn. Hai hằng
+ * tách rời nhau chính là để lần sau thêm cột không ai vô tình mở nó ra ngoài.
+ */
+const POST_PUBLIC_SELECT =
+  "id, slug, title, excerpt, body, cover_path, author_name, published_at, updated_at, status, visibility";
+
+const POST_IMAGE_SELECT = "id, post_id, storage_path, alt, sort_order";
+
+function toPostImage(row: PostImageRow): PostImage {
+  return {
+    id: row.id,
+    postId: row.post_id,
+    storagePath: row.storage_path,
+    url: publicPostImageUrl(row.storage_path),
+    alt: row.alt,
+    sortOrder: row.sort_order,
+  };
+}
+
+function toTelegramLink(row: TelegramLinkRow): TelegramLink {
+  return {
+    chatId: num(row.chat_id),
+    profileId: row.profile_id,
+    telegramUsername: row.telegram_username,
+    linkedAt: row.linked_at,
+    lastSeenAt: row.last_seen_at,
+    revokedAt: row.revoked_at,
+  };
+}
+
+function toAuditLogEntry(row: AuditLogRow): AuditLogEntry {
+  return {
+    id: num(row.id),
+    occurredAt: row.occurred_at,
+    profileId: row.profile_id,
+    actorEmail: row.actor_email,
+    channel: row.channel,
+    toolName: row.tool_name,
+    readOnly: row.read_only,
+    args: row.args ?? {},
+    outcome: row.outcome,
+    errorCode: row.error_code,
+    durationMs: row.duration_ms === null ? null : num(row.duration_ms),
+    requestId: row.request_id,
+  };
+}
+
+function toPost(row: PostRow | PublicPostRow): Post {
+  const full = row as PostRow;
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    excerpt: row.excerpt,
+    body: row.body,
+    coverPath: row.cover_path,
+    coverUrl: row.cover_path ? publicPostImageUrl(row.cover_path) : null,
+    status: row.status,
+    visibility: row.visibility,
+    // Đường công khai không đọc được bốn cột này (chưa cấp quyền cho anon), nên
+    // chúng về null thay vì undefined — kiểu domain vẫn đúng và không trang nào
+    // phải biết mình đang ở nhánh nào.
+    authorId: full.author_id ?? null,
+    authorName: row.author_name,
+    publishedAt: row.published_at,
+    reviewNote: full.review_note ?? null,
+    reviewedAt: full.reviewed_at ?? null,
+    reviewedBy: full.reviewed_by ?? null,
+    createdAt: full.created_at ?? row.updated_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -800,12 +977,25 @@ function rethrow(error: PostgrestError | null, fallback: string): never {
     }
     if (error.message.includes("deduction_needs_note")) throw new Error("DEDUCTION_NEEDS_NOTE");
   }
+  if (error?.code === "23505") {
+    if (error.message.includes("posts_slug")) throw new Error("DUPLICATE_POST_SLUG");
+    if (error.message.includes("one_pending_per_author")) {
+      throw new Error("POST_PENDING_EXISTS");
+    }
+  }
+  if (error?.code === "23514") {
+    if (error.message.includes("posts_body_len")) throw new Error("POST_BODY_TOO_LONG");
+    if (error.message.includes("posts_rejected_needs_note")) {
+      throw new Error("POST_NOTE_REQUIRED");
+    }
+  }
   if (error?.code === "23503") throw new Error("ROOM_NOT_FOUND");
 
   // Lỗi do `raise exception` trong SQL function (close_maintenance_request,
-  // update_my_maintenance_request). PostgREST gói nguyên chuỗi vào `message`,
+  // update_my_maintenance_request, approve_post, posts_enforce_quota…).
+  // PostgREST gói nguyên chuỗi vào `message`,
   // và các mã đó đã là mã app dùng — ném thẳng ra để describeError() dịch.
-  const raised = error?.message?.match(/\b(MAINTENANCE_[A-Z_]+)\b/);
+  const raised = error?.message?.match(/\b((?:MAINTENANCE|POST)_[A-Z_]+)\b/);
   if (raised) throw new Error(raised[1]);
 
   throw new Error(error?.message ?? fallback);
@@ -3006,6 +3196,625 @@ export const supabaseAdapter: Repository = {
     ]);
   },
 
+  /* ------------------------------------------------------------ bài viết */
+
+  async listPosts(filter) {
+    const supabase = await createClient();
+    let query = supabase
+      .from("posts")
+      .select(POST_SELECT)
+      .order("created_at", { ascending: false });
+
+    if (filter?.status && filter.status !== "all") query = query.eq("status", filter.status);
+    if (filter?.visibility && filter.visibility !== "all") {
+      query = query.eq("visibility", filter.visibility);
+    }
+    if (filter?.authorId) query = query.eq("author_id", filter.authorId);
+
+    const { data, error } = await query;
+    if (error) rethrow(error, "Không đọc được danh sách bài viết");
+    return (data as PostRow[]).map(toPost);
+  },
+
+  async listPostsByAuthor(authorId) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("posts")
+      .select(POST_SELECT)
+      .eq("author_id", authorId)
+      .order("created_at", { ascending: false });
+    if (error) rethrow(error, "Không đọc được bài viết của bạn");
+    return (data as PostRow[]).map(toPost);
+  },
+
+  async listPendingPosts() {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("posts")
+      .select(POST_SELECT)
+      .eq("status", "pending")
+      // Cũ nhất lên đầu: hàng chờ duyệt là hàng chờ thật, ai gửi trước xét trước.
+      .order("created_at", { ascending: true });
+    if (error) rethrow(error, "Không đọc được hàng chờ duyệt");
+    return (data as PostRow[]).map(toPost);
+  },
+
+  async listInternalFeed(limit = 20) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("posts")
+      .select(POST_SELECT)
+      .eq("status", "published")
+      .order("published_at", { ascending: false })
+      .limit(limit);
+    if (error) rethrow(error, "Không đọc được bảng tin");
+    return (data as PostRow[]).map(toPost);
+  },
+
+  async getPost(id) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("posts")
+      .select(POST_SELECT)
+      .eq("id", id)
+      .maybeSingle();
+    if (error) rethrow(error, "Không đọc được bài viết");
+    if (!data) return null;
+
+    const { data: images, error: imageError } = await supabase
+      .from("post_images")
+      .select(POST_IMAGE_SELECT)
+      .eq("post_id", id)
+      .order("sort_order", { ascending: true });
+    if (imageError) rethrow(imageError, "Không đọc được ảnh bài viết");
+
+    return { ...toPost(data as PostRow), images: (images as PostImageRow[]).map(toPostImage) };
+  },
+
+  async listSlugsLike(base) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("posts")
+      .select("slug")
+      .like("slug", `${base}%`);
+    if (error) rethrow(error, "Không kiểm được đường dẫn");
+    return (data as { slug: string }[]).map((row) => row.slug);
+  },
+
+  /* --- ba hàm dưới chạy bằng client KHÔNG cookie: chúng nằm trong "use cache" --- */
+
+  async getPublicPost(slug) {
+    const supabase = createPublicClient();
+    const { data, error } = await supabase
+      .from("posts")
+      .select(POST_PUBLIC_SELECT)
+      .eq("slug", slug)
+      .maybeSingle();
+    if (error) rethrow(error, "Không đọc được bài viết");
+    if (!data) return null;
+
+    const post = toPost(data as unknown as PublicPostRow);
+
+    const { data: images, error: imageError } = await supabase
+      .from("post_images")
+      .select(POST_IMAGE_SELECT)
+      .eq("post_id", post.id)
+      .order("sort_order", { ascending: true });
+    if (imageError) rethrow(imageError, "Không đọc được ảnh bài viết");
+
+    return { ...post, images: (images as PostImageRow[]).map(toPostImage) };
+  },
+
+  async listPublicPosts(page, pageSize) {
+    const supabase = createPublicClient();
+    const safePage = Math.max(1, Math.trunc(page));
+    const from = (safePage - 1) * pageSize;
+
+    // `.range()` là lần đầu tiên trong adapter này — mọi danh sách khác đều bị
+    // chặn bởi ngôi nhà (10 phòng, 15 người). Bài viết thì mọc mãi theo thời
+    // gian, và đây là danh sách duy nhất khách vãng lai với Googlebot cùng tải,
+    // nên nó là chỗ duy nhất "lấy hết" biến thành hoá đơn băng thông.
+    const { data, error, count } = await supabase
+      .from("posts")
+      .select(POST_PUBLIC_SELECT, { count: "exact" })
+      .order("published_at", { ascending: false })
+      .range(from, from + pageSize - 1);
+    if (error) rethrow(error, "Không đọc được danh sách bài viết");
+
+    const total = count ?? 0;
+    return {
+      items: (data as unknown as PublicPostRow[]).map(toPost),
+      total,
+      page: safePage,
+      pageCount: Math.max(1, Math.ceil(total / pageSize)),
+    };
+  },
+
+  async listPublicPostSitemapEntries() {
+    const supabase = createPublicClient();
+    const { data, error } = await supabase
+      .from("posts")
+      .select("slug, updated_at")
+      .order("published_at", { ascending: false });
+    if (error) rethrow(error, "Không dựng được sitemap bài viết");
+    return (data as { slug: string; updated_at: string }[]).map((row) => ({
+      slug: row.slug,
+      updatedAt: row.updated_at,
+    }));
+  },
+
+  /* ------------------------------------------------------------------ ghi */
+
+  async createPost(authorId, authorName, slug, input) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("posts")
+      .insert({
+        slug,
+        title: input.title,
+        excerpt: input.excerpt,
+        body: input.body,
+        author_id: authorId,
+        author_name: authorName,
+        // KHÔNG khai `status` và `visibility`: mặc định của bảng là
+        // draft/internal, và WITH CHECK của posts_insert_own chặn mọi giá trị
+        // khác đến từ người thuê. Gửi kèm ở đây chỉ tạo ảo giác rằng tầng này
+        // quyết định — nó không.
+      })
+      .select(POST_SELECT)
+      .single();
+    if (error) rethrow(error, "Không lưu được bài viết");
+    return toPost(data as PostRow);
+  },
+
+  async updatePost(id, input) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("posts")
+      .update({
+        title: input.title,
+        excerpt: input.excerpt,
+        body: input.body,
+        ...(input.slug ? { slug: input.slug } : {}),
+      })
+      .eq("id", id)
+      .select(POST_SELECT)
+      .maybeSingle();
+    if (error) rethrow(error, "Không lưu được bài viết");
+    if (!data) throw new Error("POST_FORBIDDEN");
+    return toPost(data as PostRow);
+  },
+
+  async submitPost(id) {
+    const supabase = await createClient();
+    // Xoá sạch dấu vết lần từ chối trước. Bắt buộc, không phải cho đẹp: WITH
+    // CHECK của posts_update_own đòi cả ba cột review_* là null, nên gửi lại mà
+    // còn dính lý do cũ thì lệnh bị RLS từ chối.
+    const { data, error } = await supabase
+      .from("posts")
+      .update({
+        status: "pending",
+        review_note: null,
+        reviewed_at: null,
+        reviewed_by: null,
+      })
+      .eq("id", id)
+      .select("id")
+      .maybeSingle();
+    if (error) rethrow(error, "Không gửi được bài viết");
+    if (!data) throw new Error("POST_FORBIDDEN");
+  },
+
+  async withdrawPost(id) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("posts")
+      .update({ status: "draft" })
+      .eq("id", id)
+      .eq("status", "pending")
+      .select("id")
+      .maybeSingle();
+    if (error) rethrow(error, "Không rút lại được bài viết");
+    if (!data) throw new Error("POST_FORBIDDEN");
+  },
+
+  async setPostVisibility(id, visibility) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("posts")
+      .update({ visibility })
+      .eq("id", id)
+      .select("id")
+      .maybeSingle();
+    if (error) rethrow(error, "Không đổi được phạm vi hiển thị");
+    if (!data) throw new Error("POST_FORBIDDEN");
+  },
+
+  async setPostCover(id, storagePath) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("posts")
+      .update({ cover_path: storagePath })
+      .eq("id", id)
+      .select("id")
+      .maybeSingle();
+    if (error) rethrow(error, "Không đặt được ảnh bìa");
+    if (!data) throw new Error("POST_FORBIDDEN");
+  },
+
+  async deletePost(id) {
+    const supabase = await createClient();
+
+    // Ảnh trước, dòng sau. `post_images` có ON DELETE CASCADE nên xoá bài là mất
+    // luôn danh sách đường dẫn — không đọc trước thì file nằm lại bucket vĩnh viễn.
+    const { data: images } = await supabase
+      .from("post_images")
+      .select("storage_path")
+      .eq("post_id", id);
+
+    const { data: deleted, error } = await supabase
+      .from("posts")
+      .delete()
+      .eq("id", id)
+      .select("id");
+    if (error) rethrow(error, "Không xoá được bài viết");
+    if ((deleted ?? []).length === 0) throw new Error("POST_FORBIDDEN");
+
+    await removeObjectsBestEffort(
+      supabase,
+      POST_IMAGE_BUCKET,
+      ((images ?? []) as { storage_path: string }[]).map((row) => row.storage_path),
+    );
+  },
+
+  /* --- chuyển trạng thái: RPC SECURITY DEFINER, một lệnh một transaction --- */
+
+  async approvePost(id, visibility) {
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("approve_post", {
+      p_post_id: id,
+      p_visibility: visibility,
+    });
+    if (error) rethrow(error, "Không duyệt được bài viết");
+  },
+
+  async rejectPost(id, note) {
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("reject_post", { p_post_id: id, p_note: note });
+    if (error) rethrow(error, "Không từ chối được bài viết");
+  },
+
+  async publishPost(id, visibility) {
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("publish_post", {
+      p_post_id: id,
+      p_visibility: visibility,
+    });
+    if (error) rethrow(error, "Không đăng được bài viết");
+  },
+
+  async archivePost(id) {
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("archive_post", { p_post_id: id });
+    if (error) rethrow(error, "Không gỡ được bài viết");
+  },
+
+  /* ------------------------------------------------------------------ ảnh */
+
+  async listPostImages(postId) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("post_images")
+      .select(POST_IMAGE_SELECT)
+      .eq("post_id", postId)
+      .order("sort_order", { ascending: true });
+    if (error) rethrow(error, "Không đọc được ảnh bài viết");
+    return (data as PostImageRow[]).map(toPostImage);
+  },
+
+  async countPostImages(postId) {
+    const supabase = await createClient();
+    const { count, error } = await supabase
+      .from("post_images")
+      .select("id", { count: "exact", head: true })
+      .eq("post_id", postId);
+    if (error) rethrow(error, "Không đếm được ảnh bài viết");
+    return count ?? 0;
+  },
+
+  async addPostImage(postId, uploaderId, file) {
+    const supabase = await createClient();
+
+    const extension =
+      { "image/webp": "webp", "image/png": "png", "image/jpeg": "jpg" }[file.type] ?? "jpg";
+    // Thư mục đầu tiên PHẢI là id bài: policy trên storage.objects đọc đúng phần
+    // đó để biết ảnh thuộc bài nào. Đổi quy ước này là mở toang bucket.
+    const storagePath = `${postId}/${crypto.randomUUID()}.${extension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(POST_IMAGE_BUCKET)
+      .upload(storagePath, file, uploadOptions(file));
+
+    if (uploadError) {
+      throw new Error(
+        /row-level security|Unauthorized/i.test(uploadError.message)
+          ? "POST_IMAGE_FORBIDDEN"
+          : `Không tải được ảnh lên: ${uploadError.message}`,
+      );
+    }
+
+    // File lên TRƯỚC, dòng sau — không đảo được: trigger post_images_quota đọc
+    // kích thước thật từ storage.objects, nên chưa có file thì nó ném
+    // POST_IMAGE_NOT_UPLOADED. Đó cũng là cách hạn mức byte không phụ thuộc vào
+    // con số client tự khai.
+    const { data, error } = await supabase
+      .from("post_images")
+      .insert({ post_id: postId, storage_path: storagePath, uploaded_by: uploaderId })
+      .select(POST_IMAGE_SELECT)
+      .single();
+
+    if (error) {
+      await removeObjectsBestEffort(supabase, POST_IMAGE_BUCKET, [storagePath]);
+      rethrow(error, "Không lưu được ảnh bài viết");
+    }
+
+    return toPostImage(data as PostImageRow);
+  },
+
+  async deletePostImage(imageId) {
+    const supabase = await createClient();
+
+    const { data: image, error: findError } = await supabase
+      .from("post_images")
+      .select("storage_path, post_id")
+      .eq("id", imageId)
+      .maybeSingle();
+    if (findError) rethrow(findError, "Không tìm được ảnh");
+    if (!image) return;
+
+    const storagePath = image.storage_path as string;
+
+    // Xoá dòng TRƯỚC: RLS ở đây mới là thứ quyết định người này có được xoá hay
+    // không. Cùng thứ tự với deleteMaintenancePhoto và vì cùng lý do.
+    const { data: deleted, error } = await supabase
+      .from("post_images")
+      .delete()
+      .eq("id", imageId)
+      .select("id");
+    if (error) rethrow(error, "Không xoá được ảnh");
+    if ((deleted ?? []).length === 0) throw new Error("POST_IMAGE_FORBIDDEN");
+
+    // Ảnh bìa trỏ tới file vừa xoá thì phải gỡ, nếu không trang hiện ảnh vỡ.
+    await supabase
+      .from("posts")
+      .update({ cover_path: null })
+      .eq("id", image.post_id as string)
+      .eq("cover_path", storagePath);
+
+    await removeObjectsBestEffort(supabase, POST_IMAGE_BUCKET, [storagePath]);
+  },
+
+  /* ------------------------------------------ trợ lý Telegram & nhật ký */
+
+  //  Sáu bảng dưới đây KHÔNG cấp quyền ghi cho `authenticated` (migration 0016),
+  //  nên mọi lệnh ghi ở đây dùng service-role tường minh — kể cả khi người gọi là
+  //  một Server Action có cookie. Cùng khuôn với `createTenant` / `listOverdueInvoices`.
+  //
+  //  Hai lệnh ĐỌC (`listTelegramLinks`, `listAuditLog`) thì dùng client thường:
+  //  chúng chạy từ /admin/settings/integrations và có policy `is_admin()` gác.
+
+  async createTelegramLinkCode(profileId, codeHash, expiresAt) {
+    const admin = createAdminClient();
+    const { error } = await admin.from("telegram_link_codes").insert({
+      code_hash: codeHash,
+      profile_id: profileId,
+      expires_at: expiresAt,
+    });
+    if (error) rethrow(error, "Không tạo được mã liên kết");
+  },
+
+  async redeemTelegramLinkCode(codeHash, chatId, username) {
+    const admin = createAdminClient();
+    const { data, error } = await admin.rpc("redeem_telegram_link_code", {
+      p_code_hash: codeHash,
+      p_chat_id: chatId,
+      p_username: username,
+    });
+    if (error) rethrow(error, "Không đổi được mã liên kết");
+    return data as string;
+  },
+
+  async getTelegramActor(chatId) {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("telegram_links")
+      .select("*")
+      .eq("chat_id", chatId)
+      .is("revoked_at", null)
+      .maybeSingle();
+    if (error) rethrow(error, "Không đọc được liên kết Telegram");
+    if (!data) return null;
+
+    const row = data as TelegramLinkRow;
+
+    // Đọc hồ sơ ở LẦN NÀY, không tin vào lúc liên kết: giữa hai thời điểm có thể
+    // đã có một lần hạ quyền hoặc khoá tài khoản. Cùng nguyên tắc "database nói
+    // lời cuối" của lib/auth/dal.ts.
+    const { data: profile, error: profileError } = await admin
+      .from("profiles")
+      .select("*")
+      .eq("id", row.profile_id)
+      .maybeSingle();
+    if (profileError) rethrow(profileError, "Không đọc được hồ sơ");
+    if (!profile) return null;
+
+    return { link: toTelegramLink(row), profile: toProfile(profile as ProfileRow) };
+  },
+
+  async listTelegramLinks() {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("telegram_links")
+      .select("*")
+      .order("linked_at", { ascending: false });
+    if (error) rethrow(error, "Không đọc được danh sách liên kết");
+    return (data as TelegramLinkRow[]).map(toTelegramLink);
+  },
+
+  async revokeTelegramLink(chatId) {
+    const admin = createAdminClient();
+    const { error } = await admin
+      .from("telegram_links")
+      .update({ revoked_at: new Date().toISOString() })
+      .eq("chat_id", chatId);
+    if (error) rethrow(error, "Không thu hồi được liên kết");
+  },
+
+  async touchTelegramLink(chatId) {
+    const admin = createAdminClient();
+    const { error } = await admin
+      .from("telegram_links")
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq("chat_id", chatId);
+    // Không throw: hỏng một cái mốc hiển thị không được chặn câu trả lời.
+    if (error) console.error("[telegram] không ghi được last_seen_at", error);
+  },
+
+  async countRecentLinkAttempts(chatId) {
+    const admin = createAdminClient();
+    const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { count, error } = await admin
+      .from("telegram_link_attempts")
+      .select("chat_id", { count: "exact", head: true })
+      .eq("chat_id", chatId)
+      .gt("attempted_at", since);
+    if (error) rethrow(error, "Không đếm được số lần thử");
+    return count ?? 0;
+  },
+
+  async recordLinkAttempt(chatId) {
+    const admin = createAdminClient();
+    const { error } = await admin.from("telegram_link_attempts").insert({ chat_id: chatId });
+    if (error) console.error("[telegram] không ghi được lần thử", error);
+  },
+
+  async claimTelegramUpdate(updateId) {
+    const admin = createAdminClient();
+    // `ignoreDuplicates` biến khoá chính thành cơ chế chiếm chỗ: dòng trả về rỗng
+    // nghĩa là Telegram đã gửi update này rồi.
+    const { data, error } = await admin
+      .from("telegram_updates")
+      .upsert({ update_id: updateId }, { onConflict: "update_id", ignoreDuplicates: true })
+      .select("update_id");
+    if (error) rethrow(error, "Không kiểm được trùng lặp");
+    return (data ?? []).length > 0;
+  },
+
+  async openAuditLog(entry) {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("admin_audit_log")
+      .insert({
+        profile_id: entry.profileId,
+        actor_email: entry.actorEmail,
+        channel: entry.channel,
+        tool_name: entry.toolName,
+        read_only: entry.readOnly,
+        args: entry.args,
+        outcome: "pending",
+        request_id: entry.requestId,
+      })
+      .select("id")
+      .single();
+    if (error) rethrow(error, "Không ghi được nhật ký");
+    return (data as { id: number }).id;
+  },
+
+  async closeAuditLog(id, outcome, detail) {
+    const admin = createAdminClient();
+    const { error } = await admin
+      .from("admin_audit_log")
+      .update({
+        outcome,
+        error_code: detail?.errorCode ?? null,
+        duration_ms: detail?.durationMs ?? null,
+      })
+      .eq("id", id);
+    // Không throw: một dòng nhật ký đóng hụt không được làm hỏng thao tác đã chạy
+    // xong. Dòng log này là tín hiệu duy nhất, giống [storage] và [notify].
+    if (error) console.error("[audit] không đóng được dòng nhật ký", error);
+  },
+
+  async listAuditLog(limit = 50) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("admin_audit_log")
+      .select("*")
+      .order("occurred_at", { ascending: false })
+      .limit(limit);
+    if (error) rethrow(error, "Không đọc được nhật ký");
+    return (data as AuditLogRow[]).map(toAuditLogEntry);
+  },
+
+  async getAgentUsageToday(profileId, day) {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("agent_usage")
+      .select("*")
+      .eq("profile_id", profileId)
+      .eq("day", day)
+      .maybeSingle();
+    if (error) rethrow(error, "Không đọc được hạn mức trợ lý");
+    if (!data) {
+      return { requests: 0, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
+    }
+    const row = data as AgentUsageRow;
+    return {
+      requests: num(row.requests),
+      inputTokens: num(row.input_tokens),
+      cachedInputTokens: num(row.cached_input_tokens),
+      outputTokens: num(row.output_tokens),
+    };
+  },
+
+  async addAgentUsage(profileId, day, usage) {
+    const admin = createAdminClient();
+    const current = await supabaseAdapter.getAgentUsageToday(profileId, day);
+    const { error } = await admin.from("agent_usage").upsert(
+      {
+        profile_id: profileId,
+        day,
+        requests: current.requests + usage.requests,
+        input_tokens: current.inputTokens + usage.inputTokens,
+        cached_input_tokens: current.cachedInputTokens + usage.cachedInputTokens,
+        output_tokens: current.outputTokens + usage.outputTokens,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "profile_id,day" },
+    );
+    // Không throw: ghi hụt một lần đếm token không được nuốt mất câu trả lời đã
+    // sinh ra (và đã trả tiền). Trần ngày vẫn đúng ở lần gọi sau.
+    if (error) console.error("[agent] không cộng được hạn mức", error);
+  },
+
+  async sweepAssistantTables() {
+    const admin = createAdminClient();
+    const updateCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const auditCutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+
+    const [updates, audit, attempts] = await Promise.all([
+      admin.from("telegram_updates").delete().lt("received_at", updateCutoff).select("update_id"),
+      admin.from("admin_audit_log").delete().lt("occurred_at", auditCutoff).select("id"),
+      admin.from("telegram_link_attempts").delete().lt("attempted_at", updateCutoff).select("chat_id"),
+    ]);
+
+    if (updates.error) console.error("[sweep] telegram_updates", updates.error);
+    if (audit.error) console.error("[sweep] admin_audit_log", audit.error);
+    if (attempts.error) console.error("[sweep] telegram_link_attempts", attempts.error);
+
+    return { updates: (updates.data ?? []).length, audit: (audit.data ?? []).length };
+  },
+
   /* -------------------------------------------------- dashboard + báo cáo */
 
   async getAdminTodo(period): Promise<AdminTodo> {
@@ -3014,7 +3823,8 @@ export const supabaseAdapter: Repository = {
     // mỗi tối 17:00–24:00 giờ Việt Nam sẽ đếm thừa một ngày hoá đơn "quá hạn".
     const today = todayInHouseTz();
 
-    const [overdue, drafts, pendingIds, maintenance, rooms, readings, gateNotes] = await Promise.all([
+    const [overdue, drafts, pendingIds, pendingPosts, maintenance, rooms, readings, gateNotes] =
+      await Promise.all([
       supabase
         .from("invoices")
         .select("total")
@@ -3026,6 +3836,7 @@ export const supabaseAdapter: Repository = {
         .from("id_documents")
         .select("id", { count: "exact", head: true })
         .eq("status", "pending"),
+      supabase.from("posts").select("id", { count: "exact", head: true }).eq("status", "pending"),
       supabase
         .from("maintenance_requests")
         .select("priority")
@@ -3078,6 +3889,7 @@ export const supabaseAdapter: Repository = {
       overdueAmount: overdueRows.reduce((sum, row) => sum + num(row.total), 0),
       draftInvoices: drafts.count ?? 0,
       pendingIdDocuments: pendingIds.count ?? 0,
+      pendingPosts: pendingPosts.count ?? 0,
       openMaintenance: openRows.length,
       urgentMaintenance: openRows.filter((row) => row.priority === "urgent").length,
       period,

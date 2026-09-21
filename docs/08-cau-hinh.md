@@ -24,7 +24,8 @@ Khai báo đầy đủ kèm chú thích ở [`.env.example`](../.env.example). B
 
 | Biến | Đọc ở | Thiếu thì sao |
 |---|---|---|
-| `NEXT_PUBLIC_SITE_URL` | `lib/env.ts:12` | Rơi về `http://localhost:3000`. Dùng cho link trong email và redirect URI của Zalo |
+| `NEXT_PUBLIC_SITE_URL` | `lib/env.ts:12` | Rơi về `http://localhost:3000`. Dùng cho link trong email, redirect URI của Zalo, và **toàn bộ URL tuyệt đối của SEO**: `metadataBase`, canonical, `og:image`, dòng `Sitemap:` trong robots.txt (xem [12-seo.md](12-seo.md)) |
+| `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` | `lib/env.ts:14` | Thẻ `google-site-verification` không được chèn → không mở được Search Console. App vẫn chạy bình thường |
 | `CRON_SECRET` | `lib/cron-auth.ts:41` | `/api/cron/*` trả **503** (fail-closed) |
 | `RESEND_API_KEY` | `lib/env.ts:15` | Cùng `EMAIL_FROM` quyết định `isEmailConfigured` |
 | `EMAIL_FROM` | `lib/env.ts:17` | Thiếu **một trong hai** → thông báo chỉ nằm in-app |

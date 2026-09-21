@@ -6,6 +6,8 @@ import type {
   NotificationType,
   PaymentAccountKind,
   PaymentMethod,
+  PostStatus,
+  PostVisibility,
   RoomEventType,
   RoomStatus,
   Role,
@@ -117,6 +119,8 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   gate_alert: "Cảnh báo cổng",
   gate_battery_low: "Khoá cổng sắp hết pin",
   gate_fingerprint_new: "Vân tay mới ở cổng",
+  post_pending: "Bài viết chờ duyệt",
+  post_reviewed: "Kết quả duyệt bài",
   general: "Thông báo",
 };
 
@@ -172,6 +176,49 @@ export const MAINTENANCE_SUGGESTIONS = [
   "Thấm dột trần/tường",
   "Wifi không vào được",
 ];
+
+/* -------------------------------------------------------- bài viết */
+
+export const POST_STATUS_LABEL: Record<PostStatus, string> = {
+  draft: "Nháp",
+  pending: "Chờ duyệt",
+  published: "Đang hiện",
+  rejected: "Bị từ chối",
+  archived: "Đã gỡ",
+};
+
+export const POST_STATUS_STYLE: Record<PostStatus, string> = {
+  draft: "bg-secondary text-muted-foreground border-border",
+  pending: "bg-warning/15 text-warning-foreground border-warning/30 dark:text-warning",
+  published: "bg-success/12 text-success border-success/25",
+  rejected: "bg-destructive/10 text-destructive border-destructive/25",
+  archived: "bg-secondary text-muted-foreground border-border",
+};
+
+/**
+ * Bộ lọc ở /admin/posts. Xếp `pending` lên đầu vì đó là việc NGƯỜI KHÁC tạo ra
+ * cho chủ trọ — cùng lý do mục này có huy hiệu đỏ trên thanh điều hướng.
+ */
+export const POST_STATUS_OPTIONS = (
+  ["pending", "published", "draft", "rejected", "archived"] as PostStatus[]
+).map((value) => ({ value, label: POST_STATUS_LABEL[value] }));
+
+export const POST_VISIBILITY_LABEL: Record<PostVisibility, string> = {
+  public: "Công khai",
+  internal: "Nội bộ",
+};
+
+export const POST_VISIBILITY_STYLE: Record<PostVisibility, string> = {
+  public: "bg-info/12 text-info border-info/25",
+  internal: "bg-secondary text-muted-foreground border-border",
+};
+
+export const POST_VISIBILITY_OPTIONS = (
+  Object.keys(POST_VISIBILITY_LABEL) as PostVisibility[]
+).map((value) => ({ value, label: POST_VISIBILITY_LABEL[value] }));
+
+/** Số bài mỗi trang ở /blog. Chỉ trang công khai phân trang — xem docs/13. */
+export const POSTS_PER_PAGE = 10;
 
 /* ------------------------------------------------------- cách nhận tiền */
 

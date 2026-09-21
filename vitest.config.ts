@@ -21,6 +21,13 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // `server-only` là một package chỉ để NÉM LỖI khi bị nạp ngoài Server
+      // Component; Next phân giải nó qua điều kiện bundler riêng, vitest thì
+      // không nên nó nạp trúng bản ném lỗi và cả file test chết trước khi chạy.
+      //
+      // Thay bằng một module rỗng: ở đây không có ranh giới client nào để bảo
+      // vệ, và ranh giới thật vẫn được `next build` kiểm như cũ.
+      "server-only": fileURLToPath(new URL("./src/test/server-only-stub.ts", import.meta.url)),
     },
   },
 });

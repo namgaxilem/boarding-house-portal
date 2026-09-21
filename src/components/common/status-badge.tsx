@@ -4,6 +4,10 @@ import {
   MAINTENANCE_PRIORITY_STYLE,
   MAINTENANCE_STATUS_LABEL,
   MAINTENANCE_STATUS_STYLE,
+  POST_STATUS_LABEL,
+  POST_STATUS_STYLE,
+  POST_VISIBILITY_LABEL,
+  POST_VISIBILITY_STYLE,
   ROOM_STATUS_DOT,
   ROOM_STATUS_LABEL,
   ROOM_STATUS_STYLE,
@@ -14,6 +18,8 @@ import { cn } from "@/lib/utils";
 import type {
   MaintenancePriority,
   MaintenanceStatus,
+  PostStatus,
+  PostVisibility,
   RoomStatus,
   TenancyStatus,
 } from "@/types";
@@ -92,6 +98,44 @@ export function MaintenancePriorityBadge({
       className={cn(MAINTENANCE_PRIORITY_STYLE[priority], className)}
     >
       {MAINTENANCE_PRIORITY_LABEL[priority]}
+    </Badge>
+  );
+}
+
+export function PostStatusBadge({
+  status,
+  className,
+}: {
+  status: PostStatus;
+  className?: string;
+}) {
+  return (
+    <Badge variant="outline" className={cn(POST_STATUS_STYLE[status], className)}>
+      {POST_STATUS_LABEL[status]}
+    </Badge>
+  );
+}
+
+/**
+ * Nhãn "Nội bộ" cố ý KHÔNG hiện mặc định.
+ *
+ * Nội bộ là mặc định của mọi bài, nên gắn nhãn cho nó là gắn nhãn cho tất cả.
+ * Thứ đáng đập vào mắt là bài nào đang CÔNG KHAI ra ngoài internet.
+ */
+export function PostVisibilityBadge({
+  visibility,
+  className,
+  showInternal = false,
+}: {
+  visibility: PostVisibility;
+  className?: string;
+  showInternal?: boolean;
+}) {
+  if (visibility === "internal" && !showInternal) return null;
+
+  return (
+    <Badge variant="outline" className={cn(POST_VISIBILITY_STYLE[visibility], className)}>
+      {POST_VISIBILITY_LABEL[visibility]}
     </Badge>
   );
 }

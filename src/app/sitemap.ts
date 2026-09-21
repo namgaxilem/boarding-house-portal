@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 
+import { listPublicPostSitemapEntries } from "@/lib/db/public-posts";
 import { absoluteUrl } from "@/lib/seo";
 
 /**
@@ -7,7 +8,8 @@ import { absoluteUrl } from "@/lib/seo";
  *
  * CHỈ liệt kê trang công khai. Đường dẫn ở đây phải khớp với hai chỗ khác, và
  * lệch nhau thì hỏng lặng lẽ:
- *   - `PUBLIC_PATHS` trong src/proxy.ts — không có trong đó thì khách chưa đăng
+ *   - `src/proxy.ts` — `PUBLIC_PATHS` cho đường dẫn cố định, `PUBLIC_PATH_PREFIXES`
+ *     cho phần động như `/blog/<slug>`. Không có trong đó thì khách chưa đăng
  *     nhập (và mọi con bọ tìm kiếm) bị đẩy sang /login, Google thấy một trang
  *     đăng nhập chứ không thấy nội dung;
  *   - `robots: indexable` ở (marketing)/layout.tsx — thiếu thì trang nằm trong
@@ -18,13 +20,26 @@ import { absoluteUrl } from "@/lib/seo";
  * lời mời "hãy xếp hạng trang này", còn một form đăng nhập thì không có gì để
  * xếp hạng.
  *
- * KHÔNG có `lastModified`. Hai lý do, lý do thứ hai mới là lý do cứng:
- *   1. `changeFrequency` và `priority` bị Google bỏ qua hoàn toàn, còn
- *      `lastModified` chỉ được tin khi nó thật sự chính xác — một mốc thời gian
- *      đổi theo mỗi lần deploy thì tệ hơn là không có.
- *   2. `cacheComponents` prerender route này, và `new Date()` trong lúc
- *      prerender ném thẳng lỗi "encountered the unstable value Date.now()".
+ * `lastModified` CHỈ có ở bài viết, và đó là `updated_at` của chính hàng dữ
+ * liệu — một mốc sửa nội dung THẬT. Khác hẳn `new Date()`, vốn vừa là mốc đổi
+ * theo mỗi lần deploy (Google không tin, và đúng ra là không nên tin) vừa ném
+ * thẳng lỗi "encountered the unstable value Date.now()" khi `cacheComponents`
+ * prerender route này. Bốn đường dẫn tĩnh không có mốc nào thật để khai, nên
+ * chúng vẫn không khai gì.
+ *
+ * Phần đọc database nằm sau `"use cache"` (xem `lib/db/public-posts.ts`), nên
+ * route này vẫn prerender được. Làm mới đi qua `updateTag("posts-public")` trong
+ * Server Action, KHÔNG qua `revalidatePath` — một entry `"use cache"` được đánh
+ * khoá theo hàm + tham số và `revalidatePath` không chạm tới nó.
  */
-export default function sitemap(): MetadataRoute.Sitemap {
-  return ["/", "/rooms", "/contact"].map((path) => ({ url: absoluteUrl(path) }));
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const posts = await listPublicPostSitemapEntries();
+
+  return [
+    ...["/", "/rooms", "/contact", "/blog"].map((path) => ({ url: absoluteUrl(path) })),
+    ...posts.map((post) => ({
+      url: absoluteUrl(`/blog/${post.slug}`),
+      lastModified: new Date(post.updatedAt),
+    })),
+  ];
 }

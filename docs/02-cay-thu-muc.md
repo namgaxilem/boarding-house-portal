@@ -11,7 +11,7 @@ boarding-house-portal/
 ├─ src/                     toàn bộ code ứng dụng (208 file .ts/.tsx)
 ├─ docs/                    tài liệu cấu trúc — thư mục này
 │  └─ routes/               một README.md mỗi route, soi đúng src/app/
-├─ supabase/                config.toml + 12 migration + seed.sql
+├─ supabase/                config.toml + 13 migration + seed.sql
 ├─ scripts/                 3 script Node ESM, đều được package.json gọi
 ├─ public/                  favicon.ico · sw.js (114) · icons/ (4 PNG) · zxing_reader.wasm*
 ├─ assets/                  logo.svg · logo-mark.svg — nguồn cho generate-icons.mjs
@@ -105,7 +105,7 @@ src/app/
 (`@slot`), intercepting route (`(.)`) hay catch-all (`[...x]`) nào. Skeleton được đặt trực tiếp
 trong Suspense boundary của từng route file — xem [03-dinh-tuyen.md](03-dinh-tuyen.md#skeleton-và-suspense).
 
-## `src/features/` — 14 slice
+## `src/features/` — 15 slice
 
 ```
 src/features/<slice>/
@@ -137,7 +137,7 @@ src/features/<slice>/
 ```
 src/lib/
 ├─ db/
-│  ├─ repository.ts (521)          interface Repository: 98 method + 18 type *Input
+│  ├─ repository.ts (586)          interface Repository: 122 method + 20 type *Input
 │  ├─ supabase-adapter.ts (3234)   implementation Supabase  ⚠ file lớn nhất repo
 │  ├─ index.ts (35)                export `db`, nối adapter — một dòng duy nhất
 │  └─ public-rooms.ts (17)         listVacantRooms() có cache, cho trang marketing
@@ -154,6 +154,7 @@ src/lib/
 ├─ constants.ts (206)              nhãn + class Tailwind cho mọi enum, HOME_PATH
 ├─ env.ts (75)                     env object + assertSupabaseConfigured, getServiceRoleKey
 ├─ seo.ts (148)                    pageMeta() + metadataBase/absoluteUrl + robots indexable/noIndex
+├─ structured-data.ts (206)        JSON-LD schema.org: LodgingBusiness, ItemList phòng, BreadcrumbList
 ├─ format.ts (216)  + .test.ts     formatVND, formatDate, todayInHouseTz… theo houseConfig.timeZone
 ├─ period.ts (94)   + .test.ts     kỳ tính tiền: toPeriod, currentPeriod, electricUsed, lineAmount
 ├─ cccd.ts (136)    + .test.ts     parse mã QR trên thẻ CCCD gắn chip
@@ -175,13 +176,15 @@ src/components/
 │               alert(42) avatar(51) badge(44) button(62) card(80) dialog(108)
 │               dropdown-menu(89) input(26) label(25) select(141) separator(23)*
 │               sheet(76) skeleton(13) switch(33) table(62) tabs(51)* textarea(23)
-├─ common/      16 component dùng chung
+├─ common/      17 component dùng chung
 │               form(123) — Field, SubmitButton, FormMessage, fieldErrorsOf
 │               confirm-form(81) copy-button(86) empty-state(39) install-prompt(189)
-│               landlord-contact(103) link(63) logo(78) nav-progress(58)
+│               json-ld(26) — thẻ <script type="application/ld+json">, có escape
+│               landlord-contact(103) link(63) logo(102) nav-progress(58)
 │               no-room-notice(27) page-header(67) period-picker(67)
 │               service-worker(54) stat-card(65) status-badge(97) theme(39)
-└─ layout/      nav-items.ts(93) admin-nav(134) tenant-nav(51) user-menu(66)
+└─ layout/      nav-items.ts(93) admin-nav(134) marketing-auth(50)
+                tenant-nav(51) user-menu(76)
 
 * separator.tsx và tabs.tsx hiện không ai import — xem docs/10 mục 4.4.
 ```

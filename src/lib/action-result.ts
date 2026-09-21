@@ -106,6 +106,29 @@ export function describeError(error: unknown, fallback: string): string {
     MAINTENANCE_NO_ROOM:
       "Bạn chưa được xếp vào phòng nào nên chưa gửi báo hỏng được. Liên hệ chủ trọ.",
 
+    POST_NOT_FOUND: "Không tìm thấy bài viết này.",
+    POST_PENDING_EXISTS:
+      "Bạn đang có một bài chờ duyệt. Chờ chủ trọ xử lý xong rồi gửi bài tiếp theo.",
+    POST_ALREADY_REVIEWED: "Bài này đã được xử lý rồi. Tải lại trang để xem.",
+    POST_ALREADY_PUBLISHED: "Bài này đang hiện rồi. Gỡ bài trước nếu muốn đăng lại.",
+    POST_NOT_PUBLISHED: "Bài này chưa đăng nên không gỡ được.",
+    POST_DAILY_LIMIT: "Hôm nay bạn đã gửi đủ số bài cho phép. Thử lại vào ngày mai.",
+    POST_BACKLOG_FULL:
+      "Bạn đang có quá nhiều bài chưa đăng. Xoá hoặc gửi bớt trước khi viết bài mới.",
+    POST_BODY_TOO_LONG:
+      "Nội dung quá dài. Tối đa 20.000 ký tự — cắt bớt hoặc tách thành hai bài.",
+    POST_NOTE_REQUIRED: "Từ chối thì phải ghi lý do để tác giả biết sửa gì.",
+    POST_SLUG_LOCKED:
+      "Bài đã đăng thì không đổi được đường dẫn — mọi link đã chia sẻ sẽ hỏng.",
+    DUPLICATE_POST_SLUG: "Đã có bài khác dùng đường dẫn này. Đổi tiêu đề một chút.",
+    POST_FORBIDDEN: "Bạn chỉ sửa hoặc xoá được bài của chính mình khi bài chưa đăng.",
+    POST_IMAGE_LIMIT: "Mỗi bài tối đa 4 ảnh. Xoá bớt trước khi thêm.",
+    POST_IMAGE_BYTES: "Ảnh trong bài đã chiếm quá 1,5MB. Xoá bớt hoặc dùng ảnh nhẹ hơn.",
+    POST_IMAGE_BUDGET_FULL: "Kho ảnh bài viết đã đầy. Báo chủ trọ dọn bớt ảnh cũ.",
+    POST_IMAGE_NOT_UPLOADED: "Ảnh chưa lên tới kho. Thử tải lại.",
+    POST_IMAGE_FORBIDDEN:
+      "Không có quyền thêm hoặc xoá ảnh ở bài này. Bài đã đăng, hoặc ảnh do người khác tải lên.",
+
     DEDUCTION_OVER_DEPOSIT:
       "Số trừ vào cọc lớn hơn số cọc đang giữ. Phần người thuê còn nợ vượt quá tiền cọc thì lập một hoá đơn riêng.",
     DEDUCTION_NEEDS_NOTE: "Có trừ vào cọc thì phải ghi lý do.",

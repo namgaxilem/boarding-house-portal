@@ -16,6 +16,7 @@ import { listVacantRooms } from "@/lib/db/public-rooms";
 import { formatVND } from "@/lib/format";
 import { houseConfig, fullAddress, telHref } from "@/config/site";
 import { pageMeta } from "@/lib/seo";
+import { clampDescription } from "@/lib/structured-data";
 
 /**
  * Tiêu đề trang chủ là KHẨU HIỆU chứ không phải tên nhà trọ.
@@ -27,7 +28,10 @@ import { pageMeta } from "@/lib/seo";
  */
 export const metadata = pageMeta({
   title: houseConfig.tagline,
-  description: `${houseConfig.description} Địa chỉ ${fullAddress()}.`,
+  // Google cắt mô tả quanh 155–160 ký tự. `houseConfig.description` + địa chỉ
+  // dài 180, nên phần đuôi — chính là địa chỉ — bị cắt mất. Cắt chủ động ở ranh
+  // giới từ để câu vẫn đọc được thay vì đứt giữa chữ.
+  description: clampDescription(`${houseConfig.description} Địa chỉ ${fullAddress()}.`),
   path: "/",
 });
 
@@ -44,7 +48,18 @@ export default function LandingPage() {
           <div className="max-w-2xl space-y-6">
             <Badge variant="secondary" className="gap-1.5">
               <MapPinIcon />
-              {houseConfig.address.district}, {houseConfig.address.city}
+              {/* `.filter(Boolean)`: `district` để rỗng trong config (sau khi
+                  bỏ cấp quận, địa chỉ chỉ còn phường + thành phố) và nối thẳng
+                  bằng dấu phẩy thì huy hiệu hiện ", Thành phố Hồ Chí Minh" —
+                  thừa dấu phẩy ngay dòng địa chỉ, tức là ngay tín hiệu địa
+                  phương quan trọng nhất của một trang cho thuê phòng. */}
+              {[
+                houseConfig.address.ward,
+                houseConfig.address.district,
+                houseConfig.address.city,
+              ]
+                .filter(Boolean)
+                .join(", ")}
             </Badge>
 
             <div className="space-y-4">
@@ -159,7 +174,7 @@ async function VacantRoomsPreview() {
         </div>
 
         <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {vacantRooms.slice(0, 3).map((room) => (
+          {vacantRooms.slice(0, 3).map((room, index) => (
             <li key={room.id}>
               <Card className="h-full overflow-hidden">
                 {room.photos.length > 0 && (
@@ -169,16 +184,20 @@ async function VacantRoomsPreview() {
                       alt={`Ảnh phòng ${room.code}`}
                       fill
                       sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      // Chỉ tấm đầu — xem ghi chú cùng chỗ ở rooms/page.tsx.
+                      priority={index === 0}
                       className="object-cover"
                     />
                   </div>
                 )}
                 <CardContent className="space-y-3 p-5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-2 font-semibold">
+                    {/* <h3> dưới <h2> "Phòng đang trống": giữ đúng bậc h1→h2→h3,
+                        không nhảy cấp. */}
+                    <h3 className="flex items-center gap-2 font-semibold">
                       <DoorOpenIcon className="size-4 text-muted-foreground" />
-                      {room.code}
-                    </span>
+                      Phòng {room.code}
+                    </h3>
                     <Badge variant="success">Còn trống</Badge>
                   </div>
                   <p className="text-lg font-semibold text-primary tabular-nums">

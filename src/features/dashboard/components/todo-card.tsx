@@ -4,6 +4,7 @@ import {
   ClockIcon,
   GaugeIcon,
   IdCardIcon,
+  NotebookPenIcon,
   ReceiptTextIcon,
   WrenchIcon,
   type LucideIcon,
@@ -71,6 +72,16 @@ export function TodoCard({ todo }: { todo: AdminTodo }) {
       icon: IdCardIcon,
       label: `${todo.pendingIdDocuments} hồ sơ giấy tờ chờ duyệt`,
       detail: "Duyệt xong thì số CCCD mới vào hồ sơ người thuê.",
+      tone: "info",
+    });
+  }
+
+  if (todo.pendingPosts > 0) {
+    items.push({
+      href: "/admin/posts",
+      icon: NotebookPenIcon,
+      label: `${todo.pendingPosts} bài viết chờ duyệt`,
+      detail: "Người thuê gửi lên — duyệt rồi bài mới hiện.",
       tone: "info",
     });
   }

@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/common/empty-state";
+import { JsonLd } from "@/components/common/json-ld";
+import { breadcrumbJsonLd, vacantRoomsJsonLd } from "@/lib/structured-data";
 import { listVacantRooms } from "@/lib/db/public-rooms";
 import { formatVND } from "@/lib/format";
 import { houseConfig, fullAddress, telHref } from "@/config/site";
@@ -39,6 +41,9 @@ export default function PublicRoomsPage() {
       <Suspense fallback={<RoomGridSkeleton />}>
         <RoomGrid />
       </Suspense>
+
+      {/* "nhatro… › Phòng trống" thay cho URL trần trong kết quả tìm kiếm. */}
+      <JsonLd data={breadcrumbJsonLd([{ name: "Phòng trống", path: "/rooms" }])} />
     </div>
   );
 }
@@ -79,6 +84,12 @@ async function RoomGrid() {
 
   return (
     <>
+      {/* Khối MANG GIÁ. Không có nó, Google biết đây là nhà trọ nhưng không
+          biết phòng nào trống, rộng bao nhiêu, bao nhiêu một tháng — đúng ba
+          thứ người tìm phòng gõ vào ô tìm kiếm. Nằm trong <Suspense> này vì
+          đây là chỗ duy nhất có dữ liệu phòng. */}
+      {rooms.length > 0 && <JsonLd data={vacantRoomsJsonLd(rooms)} />}
+
       {rooms.length === 0 ? (
         <EmptyState
           icon={<DoorOpenIcon />}
@@ -95,7 +106,7 @@ async function RoomGrid() {
         />
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {rooms.map((room) => (
+          {rooms.map((room, index) => (
             <li key={room.id}>
               <Card className="h-full overflow-hidden">
                 {room.photos.length > 0 ? (
@@ -105,6 +116,12 @@ async function RoomGrid() {
                       alt={`Ảnh phòng ${room.code}`}
                       fill
                       sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      // Ảnh phòng đầu tiên gần như luôn là LCP của trang này.
+                      // Để `loading="lazy"` mặc định thì trình duyệt phải dựng
+                      // xong bố cục mới biết cần tải nó — LCP trễ đúng một vòng,
+                      // và LCP là tín hiệu xếp hạng. Chỉ tấm ĐẦU; đánh dấu cả
+                      // lưới thì mất hết ý nghĩa của "ưu tiên".
+                      priority={index === 0}
                       className="object-cover"
                     />
                     {room.photos.length > 1 && (
@@ -124,7 +141,11 @@ async function RoomGrid() {
 
                 <CardContent className="flex h-full flex-col gap-3 p-5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-lg font-semibold">{room.code}</span>
+                    {/* <h2>, không phải <span>: đây là tiêu đề của từng mục
+                        trong danh sách, và trước khi sửa thì cả trang chỉ có
+                        đúng một <h1> rồi hết — không có cấu trúc nào cho bot
+                        lẫn trình đọc màn hình bám vào. */}
+                    <h2 className="text-lg font-semibold">Phòng {room.code}</h2>
                     <Badge variant="success">Còn trống</Badge>
                   </div>
 

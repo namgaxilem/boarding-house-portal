@@ -31,12 +31,13 @@ features/dashboard/queries    getAdminTodo
 ```
 
 `getAdminTodo()` được gọi **ở layout**, không ở từng trang — kết quả nuôi huy hiệu số trên
-sidebar. Ba mục có huy hiệu:
+sidebar. Bốn mục có huy hiệu:
 
 | Mục nav | Khoá badge | Vì sao có số |
 |---|---|---|
 | Giấy tờ | `pendingIdDocuments` | Người thuê tạo việc cho chủ trọ |
 | Báo hỏng | `openMaintenance` | Người thuê tạo việc cho chủ trọ |
+| Bài viết | `pendingPosts` | Người thuê tạo việc cho chủ trọ |
 | Cổng | `gateCredentialsToRevoke` | Hệ thống phát hiện: đã trả phòng mà mã cổng còn sống |
 
 Các mục còn lại **cố ý không có huy hiệu** — đó là việc chủ trọ tự chủ động vào làm, và một con
@@ -54,5 +55,6 @@ số đỏ ở đó chỉ dạy người ta bỏ qua huy hiệu (`components/lay
 | Hoá đơn | [`/admin/invoices`](admin/invoices/README.md) → [`new`](admin/invoices/new/README.md) · [`[invoiceId]`](<admin/invoices/[invoiceId]/README.md>) → [`edit`](<admin/invoices/[invoiceId]/edit/README.md>) |
 | Báo hỏng | [`/admin/maintenance`](admin/maintenance/README.md) → [`new`](admin/maintenance/new/README.md) · [`[requestId]`](<admin/maintenance/[requestId]/README.md>) → [`edit`](<admin/maintenance/[requestId]/edit/README.md>) |
 | Giấy tờ | [`/admin/identity`](admin/identity/README.md) |
+| Bài viết | [`/admin/posts`](admin/posts/README.md) → `new` · `[postId]` → `edit` |
 | Cổng | [`/admin/gate`](admin/gate/README.md) |
 | Cấu hình | [`/admin/settings`](admin/settings/README.md) → [`account`](admin/settings/account/README.md) · [`payments`](admin/settings/payments/README.md) · [`wifi`](admin/settings/wifi/README.md) |

@@ -21,7 +21,18 @@ import type {
   NotificationType,
   PaymentAccount,
   PaymentMethod,
+  AgentChannel,
+  AgentUsage,
+  AuditLogEntry,
+  AuditOutcome,
+  Post,
+  PostDetail,
+  PostImage,
+  PostPage,
+  PostStatus,
+  PostVisibility,
   Profile,
+  TelegramLink,
   RevenueReport,
   RoomPhoto,
   RoomWithPhotos,
@@ -225,6 +236,18 @@ export interface MaintenanceFilter {
   /** `"active"` = đang mở hoặc đang sửa — hàng chờ thật sự của chủ trọ. */
   status?: MaintenanceStatus | "active" | "all";
   roomId?: string;
+}
+
+export interface PostInput {
+  title: string;
+  excerpt: string | null;
+  body: string;
+}
+
+export interface PostFilter {
+  status?: PostStatus | "all";
+  visibility?: PostVisibility | "all";
+  authorId?: string;
 }
 
 export interface RecentEvent extends RoomEvent {
@@ -511,6 +534,116 @@ export interface Repository {
   deleteMaintenancePhoto(photoId: string): Promise<void>;
   /** Đếm ảnh hiện có — để chặn trước khi vượt trần mỗi phiếu. */
   countMaintenancePhotos(requestId: string): Promise<number>;
+
+  /* bài viết */
+
+  /** Toàn bộ bài, cho /admin/posts. RLS chỉ trả đủ khi người gọi là chủ trọ. */
+  listPosts(filter?: PostFilter): Promise<Post[]>;
+  /** Bài của một tác giả, mọi trạng thái. Dùng ở /me/posts. */
+  listPostsByAuthor(authorId: string): Promise<Post[]>;
+  listPendingPosts(): Promise<Post[]>;
+  getPost(id: string): Promise<PostDetail | null>;
+  /**
+   * Bài đã đăng, đọc bằng vai `anon` và KHÔNG gắn cookie.
+   *
+   * Tách khỏi `getPost` vì hai lý do cùng lúc: nó chạy trong `"use cache"` (nên
+   * không được đụng cookie) và nó chỉ được chọn những cột đã cấp cho `anon` —
+   * `select("*")` ở đây bị Postgres từ chối cả câu.
+   */
+  getPublicPost(slug: string): Promise<PostDetail | null>;
+  listPublicPosts(page: number, pageSize: number): Promise<PostPage>;
+  /** slug + updated_at của mọi bài công khai, cho sitemap. */
+  listPublicPostSitemapEntries(): Promise<{ slug: string; updatedAt: string }[]>;
+  /** Bài đã đăng mà người đăng nhập đọc được, kể cả bài nội bộ. */
+  listInternalFeed(limit?: number): Promise<Post[]>;
+  /** Những slug bắt đầu bằng `base` — để `uniqueSlug()` chọn hậu tố. */
+  listSlugsLike(base: string): Promise<string[]>;
+
+  createPost(authorId: string, authorName: string, slug: string, input: PostInput): Promise<Post>;
+  /** Sửa nội dung. Trạng thái đi qua các hàm riêng bên dưới. */
+  updatePost(id: string, input: PostInput & { slug?: string }): Promise<Post>;
+  /** Người thuê gửi bài đi duyệt: draft → pending, xoá sạch dấu vết lần từ chối trước. */
+  submitPost(id: string): Promise<void>;
+  /** Rút lại bài đang chờ: pending → draft. */
+  withdrawPost(id: string): Promise<void>;
+  deletePost(id: string): Promise<void>;
+  setPostVisibility(id: string, visibility: PostVisibility): Promise<void>;
+  setPostCover(id: string, storagePath: string | null): Promise<void>;
+
+  /* Bốn hàm dưới gọi RPC SECURITY DEFINER — một lệnh, một transaction. */
+  approvePost(id: string, visibility: PostVisibility): Promise<void>;
+  rejectPost(id: string, note: string): Promise<void>;
+  publishPost(id: string, visibility: PostVisibility): Promise<void>;
+  archivePost(id: string): Promise<void>;
+
+  listPostImages(postId: string): Promise<PostImage[]>;
+  /** Tải ảnh lên bucket công khai rồi ghi một dòng trỏ tới nó. */
+  addPostImage(postId: string, uploaderId: string, file: File): Promise<PostImage>;
+  deletePostImage(imageId: string): Promise<void>;
+  countPostImages(postId: string): Promise<number>;
+
+  /* trợ lý Telegram & nhật ký */
+
+  /**
+   * Sinh một mã liên kết dùng một lần. Chỉ lưu BĂM — mã thật hiện đúng một lần
+   * trên màn hình rồi không lấy lại được.
+   */
+  createTelegramLinkCode(
+    profileId: string,
+    codeHash: string,
+    expiresAt: string,
+  ): Promise<void>;
+  /**
+   * Đổi mã lấy liên kết. Gọi RPC `redeem_telegram_link_code` để đánh dấu mã đã
+   * dùng và gắn chat trong MỘT transaction — tách hai lệnh là mở cửa cho hai
+   * tin `/start` cùng mã chạy song song.
+   *
+   * Ném `TELEGRAM_CODE_INVALID` / `_USED` / `_EXPIRED` / `TELEGRAM_NOT_ADMIN`.
+   */
+  redeemTelegramLinkCode(
+    codeHash: string,
+    chatId: number,
+    username: string | null,
+  ): Promise<string>;
+  /** Liên kết còn hiệu lực của một chat, kèm hồ sơ để kiểm lại vai. */
+  getTelegramActor(chatId: number): Promise<{ link: TelegramLink; profile: Profile } | null>;
+  listTelegramLinks(): Promise<TelegramLink[]>;
+  revokeTelegramLink(chatId: number): Promise<void>;
+  /** Ghi mốc "vừa nói chuyện". Không throw — hỏng cái này không được chặn câu trả lời. */
+  touchTelegramLink(chatId: number): Promise<void>;
+  /** Số lần đổi mã HỎNG của một chat trong một giờ qua. */
+  countRecentLinkAttempts(chatId: number): Promise<number>;
+  recordLinkAttempt(chatId: number): Promise<void>;
+  /**
+   * Chiếm một `update_id`. Trả `false` nếu Telegram đã gửi nó rồi.
+   *
+   * PHẢI gọi TRƯỚC khi trả 200, không phải trong `after()`: một lần gửi lại tới
+   * lúc lượt đầu còn đang chạy sẽ được xử lý hai lần.
+   */
+  claimTelegramUpdate(updateId: number): Promise<boolean>;
+
+  /** Mở một dòng nhật ký ở trạng thái `pending`, trả id để đóng lại sau. */
+  openAuditLog(entry: {
+    profileId: string | null;
+    actorEmail: string;
+    channel: AgentChannel;
+    toolName: string;
+    readOnly: boolean;
+    args: Record<string, unknown>;
+    requestId: string;
+  }): Promise<number>;
+  closeAuditLog(
+    id: number,
+    outcome: AuditOutcome,
+    detail?: { errorCode?: string | null; durationMs?: number | null },
+  ): Promise<void>;
+  listAuditLog(limit?: number): Promise<AuditLogEntry[]>;
+
+  getAgentUsageToday(profileId: string, day: string): Promise<AgentUsage>;
+  addAgentUsage(profileId: string, day: string, usage: AgentUsage): Promise<void>;
+
+  /** Dọn dòng cũ. Gọi từ cron keep-alive — repo không có bộ lập lịch trong tiến trình. */
+  sweepAssistantTables(): Promise<{ updates: number; audit: number }>;
 
   /* dashboard + báo cáo */
   getAdminStats(): Promise<AdminStats>;

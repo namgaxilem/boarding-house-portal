@@ -12,6 +12,7 @@ import type {
   InvoiceDetail,
   MaintenanceRequestDetail,
   NotificationType,
+  Post,
   Role,
   SessionUser,
 } from "@/types";
@@ -326,4 +327,59 @@ export async function notifyGateCredentialToRevoke(input: {
       }),
     ),
   );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Thông báo về bài viết                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Người thuê vừa gửi một bài chờ duyệt.
+ *
+ * Gửi cho MỌI chủ trọ đang hoạt động, qua `db.listAdmins()` — hàm đó chạy bằng
+ * service-role bên trong, vì phiên của người thuê không đọc được hồ sơ chủ trọ.
+ * Cùng đường đi với `maintenanceCounterparties()` ở trên.
+ */
+export async function notifyPostSubmitted(post: Post, authorName: string) {
+  const admins = await db.listAdmins();
+
+  await Promise.all(
+    admins.map((admin) =>
+      notifyUser({
+        recipient: admin,
+        type: "post_pending",
+        title: `Bài viết chờ duyệt: ${post.title}`,
+        body: `${authorName} vừa gửi một bài viết. Duyệt thì bài mới hiện.`,
+        link: `/admin/posts/${post.id}`,
+        actionLabel: "Xem bài",
+      }),
+    ),
+  );
+}
+
+/**
+ * Chủ trọ đã duyệt hoặc từ chối.
+ *
+ * `reviewNote` đi vào `emailLines` chứ không vào `body`: lý do từ chối có thể
+ * dài, và phần hiện trong app cần ngắn để đọc lướt được trên điện thoại.
+ */
+export async function notifyPostReviewed(
+  post: Post,
+  author: { id: string; email?: string | null },
+) {
+  const approved = post.status === "published";
+
+  await notifyUser({
+    recipient: author,
+    type: "post_reviewed",
+    title: approved ? `Bài đã được đăng: ${post.title}` : `Bài chưa được duyệt: ${post.title}`,
+    body: approved
+      ? post.visibility === "public"
+        ? "Bài của bạn đã hiện công khai trên trang nhà trọ."
+        : "Bài của bạn đã hiện trong bảng tin của nhà trọ."
+      : "Chủ trọ có góp ý. Sửa lại rồi gửi tiếp.",
+    link: approved && post.visibility === "public" ? `/blog/${post.slug}` : `/me/posts/${post.id}`,
+    emailLines: post.reviewNote ? [post.reviewNote] : undefined,
+    actionLabel: "Xem bài",
+  });
 }

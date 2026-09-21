@@ -65,6 +65,7 @@ trang trống trông như lỗi, chúng render `NoRoomNotice`
 | `/me/identity` | [identity](me/identity/README.md) | 160 |
 | `/me/invoices` | [invoices](me/invoices/README.md) | 104 |
 | `/me/invoices/[invoiceId]` | [invoices/[invoiceId]](<me/invoices/[invoiceId]/README.md>) | 75 |
+| `/me/posts` (+ `new`, `[postId]`, `[postId]/edit`) | [posts](me/posts/README.md) | 4 file |
 | `/me/maintenance` | [maintenance](me/maintenance/README.md) | 86 |
 | `/me/maintenance/new` | [maintenance/new](me/maintenance/new/README.md) | 54 |
 | `/me/maintenance/[requestId]` | [maintenance/[requestId]](<me/maintenance/[requestId]/README.md>) | 167 |

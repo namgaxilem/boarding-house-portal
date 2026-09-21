@@ -24,7 +24,17 @@ export function UserMenu({ user }: { user: SessionUser }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="Tài khoản">
+        {/* Nhãn PHẢI chứa hai chữ cái đang hiện trên nút.
+            Nút hiện chữ "NN" mà tên trợ năng chỉ là "Tài khoản" là lỗi
+            label-content-name-mismatch: người điều khiển bằng giọng nói đọc
+            thấy "NN" rồi ra lệnh "bấm NN", và trình duyệt không tìm ra nút nào
+            tên như vậy. Đặt `aria-hidden` lên avatar KHÔNG chữa được — chữ vẫn
+            hiện trên màn hình, đó mới là thứ người dùng đọc theo. */}
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={`${initials(user.fullName)} — tài khoản`}
+        >
           <Avatar>
             <AvatarFallback>{initials(user.fullName)}</AvatarFallback>
           </Avatar>

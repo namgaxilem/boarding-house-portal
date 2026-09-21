@@ -305,6 +305,21 @@ bỏ cờ đó chỉ để tiện một lần.
 Không muốn dùng MCP nữa: xoá `.mcp.json`, và thu hồi token tại
 https://supabase.com/dashboard/account/tokens.
 
+#### Khác với trợ lý Telegram của chính app
+
+App có một trợ lý AI riêng (xem [docs/14](docs/14-tro-ly-telegram.md)), và nó KHÔNG gặp vấn đề
+prompt injection theo cùng cách:
+
+| | Supabase MCP ở trên | Trợ lý Telegram |
+| --- | --- | --- |
+| Mô hình nhận được gì | Một ô **SQL tự do** (`execute_sql`) | **18 hàm có kiểu**, args đã zod-parse |
+| Ghi được không | Không (`--read-only`) | Không ở đợt này; đợt sau phải bấm xác nhận |
+| Đọc được CCCD / mã cổng / wifi | Có — nó đọc thẳng schema | **Không.** Bốn nhóm đó không có tool nào |
+| Có nhật ký không | Không | `admin_audit_log`, ghi cả lần đọc |
+
+Lý do khác nhau nằm ở chỗ *"registry không có ô SQL nào để đưa cho mô hình"* — mọi tool đi qua
+`Repository`, nên câu lệnh sinh ra luôn là PostgREST có tham số.
+
 ---
 
 ## 4. Đăng nhập bằng Google / Facebook / Zalo
@@ -412,13 +427,18 @@ Màu logo **cố ý không theo theme**: giống nhau ở chế độ sáng và 
 
 ### SEO: thẻ chia sẻ, sitemap, robots
 
-Ba mảnh, mỗi mảnh làm một việc:
+> Bản đầy đủ — kèm lý do từng quyết định, ba cái bẫy của Next, và danh sách còn
+> thiếu — nằm ở [`docs/12-seo.md`](docs/12-seo.md). Phần dưới là bản rút gọn.
 
 | Mảnh | Ở đâu | Việc |
 | --- | --- | --- |
 | `pageMeta()` | `src/lib/seo.ts` | Dựng đủ bộ cho một trang: title, description, canonical, `og:*`, `twitter:*`, ảnh xem trước |
+| JSON-LD | `src/lib/structured-data.ts` | `LodgingBusiness` + danh sách phòng kèm giá + đường dẫn phân cấp, theo schema.org |
+| `<JsonLd>` | `src/components/common/json-ld.tsx` | Nhúng khối JSON-LD, có escape `<` chống XSS |
 | `sitemap.xml` | `src/app/sitemap.ts` | Ba URL công khai, để bot khỏi phải tự dò |
 | `robots.txt` | `src/app/robots.ts` | Chặn bot **tải** khu sau đăng nhập, và trỏ tới sitemap |
+
+**Open Graph ≠ JSON-LD.** OG nói cho Zalo/Facebook biết cách *vẽ* thẻ xem trước. JSON-LD nói cho Google biết trang này *là cái gì* — đó mới là thứ đưa giá thuê, địa chỉ và giờ mở cửa lên thẳng kết quả tìm kiếm. Cần cả hai.
 
 **Mặc định là CẤM lập chỉ mục.** `src/app/layout.tsx` đặt `robots: noIndex` cho toàn site; chỉ `(marketing)/layout.tsx` mở lại bằng `robots: indexable`. Thêm một trang riêng tư mới mà quên khai gì thì nó im lặng nằm **ngoài** Google — chứ không im lặng lọt vào. Ba trang được lập chỉ mục là `/`, `/rooms`, `/contact`.
 
@@ -432,7 +452,13 @@ Ba mảnh, mỗi mảnh làm một việc:
 
 **`og:title` dùng dạng `{ absolute }`.** Chuỗi thường bị template `%s · Nhà trọ 1-47` của layout gốc nối thêm lần nữa, ra `Phòng trống · Nhà trọ 1-47 · Nhà trọ 1-47`.
 
+**Cấu trúc tiêu đề cũng là SEO.** Mỗi trang đúng một `<h1>`, không nhảy cấp. `CardTitle` nhận prop `as` để đổi **cấp** tiêu đề mà không đổi cỡ chữ — `/contact` dùng `as="h2"` vì card ở đó là khối cấp một.
+
+**`priority` chỉ đặt trên ảnh phòng ĐẦU TIÊN** của `/` và `/rooms` — đó gần như luôn là LCP, và LCP là tín hiệu xếp hạng. Đánh dấu cả lưới thì mất hết ý nghĩa của "ưu tiên".
+
 > ⚠️ **`NEXT_PUBLIC_SITE_URL` phải là domain thật khi deploy.** `metadataBase`, canonical, `og:image` và `Sitemap:` trong robots.txt đều dựng từ biến này. Để trống thì mọi URL tuyệt đối trỏ về `http://localhost:3000`, và thẻ xem trước trên Zalo/Messenger mất ảnh.
+
+Đặt `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` để mở Search Console (nộp sitemap, xem trang nào đã được lập chỉ mục). Trống thì thẻ xác minh không được chèn, app vẫn chạy bình thường.
 
 Kiểm nhanh sau khi deploy:
 
@@ -440,7 +466,14 @@ Kiểm nhanh sau khi deploy:
 curl -s https://<domain>/robots.txt
 curl -s https://<domain>/sitemap.xml
 curl -s https://<domain>/rooms | grep -o '<meta property="og:[^>]*>'
+curl -s https://<domain>/rooms | grep -c '<script type="application/ld+json">'   # phải là 3
 ```
+
+Rồi dán `https://<domain>/rooms` vào [Rich Results Test](https://search.google.com/test/rich-results) — phải thấy `LodgingBusiness`, `ItemList`, `BreadcrumbList`, không lỗi.
+
+**Đo được (Lighthouse mobile, bản production):** `/` và `/rooms` đều SEO 100 · Trợ năng 100 · Best Practices 100, 0 audit hỏng.
+
+**Khoảng trống lớn nhất còn lại: chưa có trang riêng cho từng phòng.** Cả site chỉ có 3 URL được lập chỉ mục. 11 phòng cạnh tranh nhau trên đúng một trang `/rooms`. Chi tiết ở [`docs/12-seo.md` §10](docs/12-seo.md).
 
 ### Người thuê cài thế nào
 

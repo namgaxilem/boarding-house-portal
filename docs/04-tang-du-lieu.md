@@ -12,7 +12,7 @@ features/*/queries.ts          features/*/actions.ts
           src/lib/db/index.ts        export const db: Repository = supabaseAdapter
                        │
                        ▼
-          src/lib/db/repository.ts   interface Repository — 98 method, 18 type *Input
+          src/lib/db/repository.ts   interface Repository — 122 method, 20 type *Input
                        │
                        ▼
           src/lib/db/supabase-adapter.ts   implementation duy nhất hiện có
@@ -70,7 +70,7 @@ Vài quy ước nội bộ đáng biết:
 
 ## Lược đồ Postgres
 
-### 20 bảng
+### 22 bảng
 
 | Nhóm | Bảng |
 |---|---|
@@ -79,6 +79,7 @@ Vài quy ước nội bộ đáng biết:
 | Tiện ích | `wifi_networks`, `meter_readings` |
 | Tiền | `invoices`, `payment_accounts` |
 | Vận hành | `maintenance_requests`, `maintenance_photos`, `notifications` |
+| Bài viết | `posts`, `post_images` — xem [13-bai-viet.md](13-bai-viet.md) |
 | Cổng TTLock | `gate_locks`, `gate_credentials`, `gate_passcodes`*, `gate_fingerprints`*, `gate_events`*, `integration_tokens`* |
 
 `*` — bốn bảng này **chưa có truy vấn nào từ app**. Xem [10](10-ra-soat-cau-truc.md#42).
@@ -112,7 +113,7 @@ Ra khỏi tầng đó, không nơi nào thấy `snake_case` nữa. Quy tắc nà
 
 ### Migration
 
-12 file trong `supabase/migrations/`, đặt tên `YYYYMMDDNNNNNN_snake_case.sql`. Thứ tự tên là
+13 file trong `supabase/migrations/`, đặt tên `YYYYMMDDNNNNNN_snake_case.sql`. Thứ tự tên là
 thứ tự áp dụng. Mỗi file lặp lại số thứ tự trong comment đầu file (`-- NNNN_name.sql`).
 
 - **Local:** `npm run db:start` chạy migration + `seed.sql` tự động. `npm run db:reset` làm lại
@@ -130,6 +131,7 @@ migration cũng là bước cấp phát storage.
 | `id-photos` | ❌ | Ảnh CCCD. Chỉ truy cập bằng **signed URL hạn 2 phút** | `…0006_id_documents.sql:230` |
 | `payment-qr` | ✅ | Ảnh QR nhận tiền | `…0011_storage_budget.sql` |
 | `maintenance-photos` | ❌ | Ảnh kèm phiếu báo hỏng | `…0009_maintenance_photos.sql` |
+| `post-images` | ✅ | Ảnh trong bài viết; ảnh bìa đi vào `og:image` | `…0013_posts.sql` |
 
 `file_size_limit` toàn cục 50MiB ở `config.toml:118`, nhưng từng bucket bị siết chặt hơn trong
 `…0011_storage_budget.sql:33-61` cho khớp `maxUploadBytes` của

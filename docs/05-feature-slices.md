@@ -71,7 +71,7 @@ Một Zod schema mỗi form, đặt tên `camelCaseSchema` (`roomSchema`, `invoi
 `invalid()` dựng `fieldErrors` từ `error.issues` chứ không dùng `flatten()` — helper đó đổi
 chỗ giữa zod 3 và 4, còn `issues` thì ổn định ở cả hai.
 
-## 14 slice
+## 15 slice
 
 ### `auth` (666 dòng)
 
