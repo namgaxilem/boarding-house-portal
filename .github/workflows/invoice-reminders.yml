@@ -12,6 +12,7 @@ on:
 jobs:
   remind:
     runs-on: ubuntu-latest
+    environment: Production
     steps:
       - name: Gọi endpoint nhắc hạn
         run: |
